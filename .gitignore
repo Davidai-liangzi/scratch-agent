@@ -1,0 +1,30 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---- 打包/构建产物 ----
+dist/
+build/
+*.log
+
+# ---- 运行时生成（含敏感配置与可重新同步的数据） ----
+config.json
+assets_lib/
+temp_project/
+
+# ---- 生成的 .sb3 与解包工程目录 ----
+*.sb3
+my_ai_game/
+bug03_regression/
+bug03_regression2/
+bug03_final/
+
+# ---- Node 依赖 ----
+node_modules/
+
+# ---- IDE ----
+.idea/
+.vscode/
