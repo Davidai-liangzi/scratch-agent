@@ -1,20 +1,20 @@
-"""版本检测：通过 Gitee Releases API 检测最新版本，不做自动更新。
+"""版本检测：通过 GitHub Releases API 检测最新版本，不做自动更新。
 
-个人开发者无服务器，用 Gitee 免费的 Releases API 匿名检测即可。
-检测到新版本时由 gui 弹窗提示，用户手动跳转 Gitee 发行版页面下载覆盖。
+个人开发者无服务器，用 GitHub 免费的 Releases API 匿名检测即可。
+检测到新版本时由 gui 弹窗提示，用户手动跳转 GitHub 发行版页面下载覆盖。
 """
 import re
 
 import requests
 
-# Gitee 仓库（owner/repo），改这里即可切换检测目标
-GITEE_OWNER = "c122e3"
-GITEE_REPO = "Scratch_agent"
+# GitHub 仓库（owner/repo），改这里即可切换检测目标
+GITHUB_OWNER = "Davidai-liangzi"
+GITHUB_REPO = "scratch-agent"
 
 # 当前程序版本号（每次发版手动 +1 即可）
 APP_VERSION = "1.1.0"
 
-_API_URL = f"https://gitee.com/api/v5/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/latest"
+_API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
 
 
 def _parse_version(tag: str) -> str:
@@ -34,7 +34,7 @@ def _version_tuple(v: str) -> tuple:
 
 
 def check_update():
-    """检测 Gitee 最新版本。
+    """检测 GitHub 最新版本。
 
     返回 (latest_version, download_url)；无更新、无 release 或网络失败时返回 None。
     """
@@ -46,7 +46,7 @@ def check_update():
         tag = data.get("tag_name") or ""
         latest = _parse_version(tag)
         html_url = data.get("html_url") or (
-            f"https://gitee.com/{GITEE_OWNER}/{GITEE_REPO}/releases")
+            f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases")
         if latest and _version_tuple(latest) > _version_tuple(APP_VERSION):
             return latest, html_url
     except Exception:
