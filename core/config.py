@@ -27,17 +27,17 @@ PROVIDERS = {
         "display": "OpenAI (GPT)",
         "base_url": "https://api.openai.com/v1",
         "tiers": {
-            "fast": ["gpt-5.6-luna", "gpt-4o-mini"],
-            "balanced": ["gpt-5.6-terra"],
-            "powerful": ["gpt-5.6", "gpt-5"],
+            "fast": ["gpt-6-luna"],
+            "balanced": ["gpt-6-sol"],
+            "powerful": ["gpt-6-astra"],
         },
     },
     "gemini": {
         "display": "Google Gemini",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
         "tiers": {
-            "fast": ["gemini-3.6-flash", "gemini-3.5-flash"],
-            "powerful": ["gemini-3.1-pro-preview"],
+            "fast": ["gemini-3.7-flash"],
+            "powerful": ["gemini-3.7-pro"],
         },
     },
     "qwen": {
@@ -61,16 +61,15 @@ PROVIDERS = {
         "display": "月之暗面 Kimi",
         "base_url": "https://api.moonshot.cn/v1",
         "tiers": {
-            "fast": ["moonshot-v1-8k"],
-            "balanced": ["moonshot-v1-32k"],
-            "powerful": ["moonshot-v1-128k"],
+            "fast": ["kimi-k2.6"],
+            "powerful": ["kimi-k3"],
         },
     },
     "doubao": {
         "display": "火山豆包",
         "base_url": "https://ark.cn-beijing.volces.com/api/v3",
         "tiers": {
-            "powerful": ["doubao-seed-2-1-pro-260628"],
+            "powerful": ["doubao-seed-2.1-pro"],
         },
     },
     "siliconflow": {
@@ -110,8 +109,7 @@ DEFAULT_TIER = "fast"
 VISION_MODEL_PREFIXES = (
     "deepseek-flash",      # DeepSeek flash 支持视觉；deepseek-v4-pro 不支持
     "gemini-",             # Gemini 全系原生多模态
-    "gpt-4o",              # gpt-4o / gpt-4o-mini 均支持
-    "gpt-5",               # GPT-5.x 系列
+    "gpt-6",               # GPT-6 系列（gpt-6-astra/sol/luna 均支持多模态）
     "qwen3",               # 通义 Qwen3.x（flash / plus / max）
     "glm-5.3-flash",       # GLM-5.3 系列首个原生多模态
     "doubao-seed",         # 火山豆包 Seed 系列

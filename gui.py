@@ -80,6 +80,14 @@ def _make_send_icon(size=34):
     return QIcon(pixmap)
 
 
+# 峰谷/闲时定价厂商：价格随时段变化，价格旁附加一句提示（不做实时时段判断）
+_OFFPEAK_HINT = {
+    "deepseek": "闲时≈半价",
+    "doubao": "高峰/闲时不同价",
+    "qwen": "闲时价更低",
+}
+
+
 def _prepare_user_image(src):
     """把用户拖入的图片预处理成工程可用的 PNG，返回附件 dict；读不了返回 None。
 
@@ -965,6 +973,11 @@ class MainWindow(QMainWindow):
         model_row.addStretch(1)
         layout.addLayout(model_row)
 
+        # 当前模型名 + 多模态 + 价格（浅色小字，直接可见）
+        self.model_hint = QLabel("")
+        self.model_hint.setStyleSheet("color: #8a8a9a; font-size: 11px; padding: 2px 2px;")
+        layout.addWidget(self.model_hint)
+
         # ---- 输入区（胶囊形发送按钮 + 纸飞机图标）----
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -1369,18 +1382,21 @@ class MainWindow(QMainWindow):
             "provider": provider, "tier": tier, "base_url": base_url, "models": models,
         })
         script.save_config(provider=provider, tier=tier)
-        # 多模态提示 + 价格放到 tooltip（P0 步骤⑧ / ⑦，不占版面）
+        # 多模态提示 + 价格（模型名直接显示在 model_hint，tooltip 保留快捷提示）
         primary = models[0] if models else ""
         if primary:
             vision = "支持读图" if script.supports_vision(primary) else "不支持读图"
             price = pricing.get_model_price(primary, self._prices)
+            offpeak = _OFFPEAK_HINT.get(provider, "")
+            hint = f"{primary} · {vision}"
+            if offpeak:
+                hint += f" · {offpeak}"
             if price:
-                tip = (f"{primary} · {vision}\n"
-                       f"输入 ¥{price[0]:.2f}/M · 输出 ¥{price[1]:.2f}/M")
-            else:
-                tip = f"{primary} · {vision}"
-            self.provider_box.setToolTip(tip)
+                hint += f" · 输入 ¥{price[0]:.2f}/M · 输出 ¥{price[1]:.2f}/M"
+            self.model_hint.setText(hint)
+            self.provider_box.setToolTip(hint)
         else:
+            self.model_hint.setText("")
             self.provider_box.setToolTip("")
 
     # ---- 设置 ----

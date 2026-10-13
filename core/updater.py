@@ -12,7 +12,7 @@ GITEE_OWNER = "c122e3"
 GITEE_REPO = "Scratch_agent"
 
 # 当前程序版本号（每次发版手动 +1 即可）
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 
 _API_URL = f"https://gitee.com/api/v5/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/latest"
 
