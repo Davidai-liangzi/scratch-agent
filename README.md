@@ -149,10 +149,13 @@ Copy-Item vm-runner dist\ScratchGenerator\vm-runner -Recurse
 # 4. 官方素材清单 + 本地缓存，保证离线可用
 Copy-Item assets_lib dist\ScratchGenerator\assets_lib -Recurse
 
+# 5. 前端界面（WebEngine 渲染用，含 webview.html + marked/highlight/qwebchannel）
+Copy-Item ui dist\ScratchGenerator\ui -Recurse
+
 Copy-Item 使用说明.txt dist\ScratchGenerator\
 ```
 
-便携包结构：`ScratchGenerator.exe` + `node.exe` + `fractch/` + `vm-runner/` + `assets_lib/` + `_internal/` + `使用说明.txt`。运行时 `_fractch_invoke()` 优先用应用目录内的 `node.exe` + `fractch/bin/cli.js`，找不到才回退到 PATH 里的 fractch；`run_project_validation()` 用应用目录内的 `node.exe` + `vm-runner/run.js` 做无头运行验证，缺 `vm-runner/` 时跳过运行时检查。
+便携包结构：`ScratchGenerator.exe` + `node.exe` + `fractch/` + `vm-runner/` + `assets_lib/` + `ui/` + `_internal/` + `使用说明.txt`。运行时 `_fractch_invoke()` 优先用应用目录内的 `node.exe` + `fractch/bin/cli.js`，找不到才回退到 PATH 里的 fractch；`run_project_validation()` 用应用目录内的 `node.exe` + `vm-runner/run.js` 做无头运行验证，缺 `vm-runner/` 时跳过运行时检查。
 
 ## 已知能力边界
 

@@ -15,7 +15,7 @@ from core.fractch import (
     run_project_validation,
     summarize_runtime,
 )
-from core.llm import ask_llm, build_user_content, parse_spec
+from core.llm import GenerationStopped, ask_llm, build_user_content, parse_spec
 from core.paths import OUTPUT_SB3, WORK_DIR, app_dir
 from core.prompts import (
     MODIFY_PROMPT,
@@ -186,7 +186,7 @@ def _restore_vanished_costumes(work_dir: str, snap: dict) -> None:
 
 
 def modify_project(work_dir: str, feedback: str, output_sb3: str = None,
-                   user_images=None) -> bool:
+                   user_images=None, stop_event=None, on_chunk=None) -> bool:
     """读现有 fractch 工程，让 LLM 只改需要改的文件，写回后 check + pack。
 
     user_images 非空时，用户拖入的图片也参与本轮修改（走 `@user:N`，与生成同构）。
@@ -215,7 +215,7 @@ def modify_project(work_dir: str, feedback: str, output_sb3: str = None,
         {"role": "user", "content": build_user_content(user_text, user_images if vision else None)},
     ]
 
-    raw = ask_llm(messages)
+    raw = ask_llm(messages, stop_event=stop_event, on_chunk=on_chunk)
     if raw is None:
         return False
 
@@ -335,25 +335,44 @@ def _is_complex(user_prompt: str) -> bool:
     return any(k in p for k in _COMPLEX_HINTS)
 
 
-def _request_outline(user_prompt: str) -> str:
-    """复杂需求先让模型输出「设计大纲」，返回大纲 JSON 文本；失败返回 ''（回退单轮）。"""
+def _request_outline(user_prompt: str, stop_event=None, on_chunk=None) -> str:
+    """复杂需求先让模型输出「设计大纲」，返回大纲 JSON 文本；失败返回 ''（回退单轮）。
+
+    GenerationStopped 不在此吞掉，向上传播（用户停止要立即中断，不能静默回退）。
+    """
     try:
         raw = ask_llm([
             {"role": "system", "content": build_system_prompt()},
             {"role": "user", "content": OUTLINE_PROMPT + "\n\n" + build_outline_user_prompt(user_prompt)},
-        ])
+        ], stop_event=stop_event, on_chunk=on_chunk)
         if not raw:
             return ""
         spec = parse_spec(raw)
         if not isinstance(spec, dict) or not spec.get("sprites"):
             return ""
         return json.dumps(spec, ensure_ascii=False)
+    except GenerationStopped:
+        raise
     except Exception:
         return ""
 
 
+def _emit_step(step_cb, kind, status, title, detail=""):
+    """步骤事件回调（P1 步骤 4）：把生成过程中的关键节点结构化上报。
+
+    kind ∈ {outline, request, assets, pack, verify, done}，status ∈ {start, done, fail}。
+    step_cb 为 None（CLI 场景）时不动作，进度仍由 print 日志表达。
+    """
+    if step_cb is None:
+        return
+    try:
+        step_cb(kind, status, title, detail)
+    except Exception:
+        pass
+
+
 def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str = None,
-                          user_images=None):
+                          user_images=None, stop_event=None, step_cb=None, on_chunk=None):
     if feedback_fn is None:
         feedback_fn = lambda: input("🔧 如果生成的游戏还有问题，请描述（例如：某个角色不动 / 造型不对 / 路线走不通），直接回车结束：")
 
@@ -379,10 +398,12 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
     # 大纲这轮输出很短（角色 + 素材引用 + 流程），但能让后续编码结构更稳、少回炉。
     # 大纲失败则静默回退到单轮（不阻塞主流程）。
     if _is_complex(user_prompt):
+        _emit_step(step_cb, "outline", "start", "设计大纲")
         print("🧭 复杂需求，先生成设计大纲…")
-        outline = _request_outline(user_prompt)
+        outline = _request_outline(user_prompt, stop_event=stop_event, on_chunk=on_chunk)
         if outline:
             user_text += "\n\n【已确定的设计大纲（据此生成完整清单，不要偏离大纲的角色与素材）】\n" + outline
+            _emit_step(step_cb, "outline", "done", "设计大纲", "主题与素材已确定")
             print("✅ 设计大纲已确定，据此生成完整项目清单。")
 
     messages = [
@@ -393,13 +414,18 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
     work_dir, output_sb3 = project_paths(project_name)
 
     while True:  # 每次成功打包后询问反馈，有反馈就再来一轮
+        if stop_event is not None and stop_event.is_set():
+            raise GenerationStopped()
         manifest = {}   # 当前已确认的完整清单 {路径: 内容}；回炉时按补丁合并
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            if stop_event is not None and stop_event.is_set():
+                raise GenerationStopped()
             provider_display = PROVIDERS.get(LLM_CONFIG["provider"], {}).get("display", LLM_CONFIG["provider"])
             tier_label = dict(TIERS).get(LLM_CONFIG["tier"], LLM_CONFIG["tier"])
+            _emit_step(step_cb, "request", "start", "请求模型生成清单", f"第 {attempt}/{MAX_ATTEMPTS} 次尝试")
             print(f"\n🤖 [1/5] 正在请求 {provider_display} · {tier_label} 生成项目文件清单...（第 {attempt}/{MAX_ATTEMPTS} 次尝试）")
 
-            raw_spec = ask_llm(messages)
+            raw_spec = ask_llm(messages, stop_event=stop_event, on_chunk=on_chunk)
             if raw_spec is None:
                 return False
 
@@ -420,6 +446,7 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                 messages = _repair_messages(user_prompt, manifest, str(e), user_images, vision)
                 continue
 
+            _emit_step(step_cb, "request", "done", "文件清单已生成", f"{len(files)} 个文件")
             if attempt == 1:
                 print(f"📝 [2/5] 已生成 {len(files)} 个文件：")
                 print("   " + ", ".join(f["path"] for f in files))
@@ -427,6 +454,7 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                 print(f"📝 [2/5] 第 {attempt} 次输出改动了 {len(changed)} 个文件（当前共 {len(files)} 个）：")
                 print("   " + ", ".join(changed))
 
+            _emit_step(step_cb, "assets", "start", "准备素材")
             print("🎨 [3/5] 正在准备素材并写入 fractch 工程...")
             # 先解析用户图片（@user:N），再解析官方素材（@official:），声明合并后统一注入
             files, decls = resolve_user_assets(files, user_images)
@@ -435,6 +463,7 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                 decls.setdefault(target, []).extend(items)
             write_files(work_dir, files)
             inject_costume_declarations(work_dir, decls)
+            _emit_step(step_cb, "assets", "done", "素材已写入")
 
             # 3.5 打包前先做 fractch check，命中语法错误就回炉，不必等 pack 报错
             issues = check_project(work_dir)
@@ -454,13 +483,17 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                         user_images, vision)
                     continue
 
+            _emit_step(step_cb, "pack", "start", "fractch 打包")
             print("⚙️ [4/5] 正在调用 fractch 打包成 .sb3 文件...")
             if rebuild_project(work_dir, output_sb3):
+                _emit_step(step_cb, "pack", "done", "打包成功")
                 print(f"\n🎉 [5/5] 成功生成文件：{os.path.abspath(output_sb3)}")
                 print(f"👉 已尝试自动打开；如需手动，用 Scratch / TurboWarp 的【文件 → 从电脑中打开】选择 {os.path.basename(output_sb3)}。\n")
                 # 运行时验证：无头跑一遍，把结果打印出来，让 agent 和用户都能"看到"运行效果
+                _emit_step(step_cb, "verify", "start", "运行时验证")
                 result = run_project_validation(output_sb3)
                 if result:
+                    _emit_step(step_cb, "verify", "done", "验证完成")
                     print("🔍 运行时验证（无头跑一遍的结果）：")
                     print(summarize_runtime(result))
                     print("")
@@ -473,7 +506,8 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                         fix_prompt = "运行时验证发现以下问题，请只修改相关的 .fractch 文件来修复：\n" + \
                                      "\n".join(f"- {i}" for i in issues)
                         if not modify_project(work_dir, fix_prompt, output_sb3,
-                                              user_images=user_images):
+                                              user_images=user_images, stop_event=stop_event,
+                                              on_chunk=on_chunk):
                             print("⚠️ 自动修复失败，停止本轮修复。")
                             break
                         result = run_project_validation(output_sb3)
@@ -483,11 +517,15 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                             print("")
                 # 反馈环：增量修改现有 fractch 文件，而不是重新生成整个项目
                 while True:
+                    if stop_event is not None and stop_event.is_set():
+                        raise GenerationStopped()
                     feedback = feedback_fn().strip()
                     if not feedback:
+                        _emit_step(step_cb, "done", "done", "生成完成")
                         return True
                     if modify_project(work_dir, feedback, output_sb3,
-                                      user_images=user_images):
+                                      user_images=user_images, stop_event=stop_event,
+                                      on_chunk=on_chunk):
                         continue
                     print("⚠️ 这次修改没成功，请换种说法或描述更具体的问题。")
 

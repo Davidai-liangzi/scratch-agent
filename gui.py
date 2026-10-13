@@ -1,7 +1,7 @@
 import contextlib
 import faulthandler
 import hashlib
-import html
+import json
 import os
 import queue
 import re
@@ -10,17 +10,27 @@ import tempfile
 import threading
 import time
 import traceback
+import webbrowser
 
-from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
+from PySide6.QtCore import (
+    QEasingCurve, QObject, QPropertyAnimation, QRect, QSize, Qt, QThread, QTimer, QUrl,
+    Signal, Slot,
+)
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QComboBox, QDialog, QFileDialog, QFormLayout,
-    QFrame, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow,
-    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
+    QFrame, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QListWidget,
+    QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPushButton, QSizePolicy, QSplitter,
+    QStyle, QStyledItemDelegate, QTableWidget, QTableWidgetItem, QTextEdit, QToolButton,
+    QVBoxLayout, QWidget,
 )
 
 import script
+from core import pricing, updater
+from core.llm import GenerationStopped
 
 _THUMB = 56      # 缩略图边长（像素）
 _PREVIEW = 360   # 放大预览边长（像素）
@@ -32,6 +42,42 @@ _CHIP_THUMB = 26
 _COSTUME_LONG_EDGE = 200          # 造型：最长边 ≤ 200
 _BACKDROP_SIZE = (480, 360)       # 背景：等比贴合 480×360
 _TEMP_IMG_DIR = os.path.join(tempfile.gettempdir(), "scratchgen_attach")
+
+# 发送/停止按钮样式（第三轮：胶囊形 + 天蓝渐变纸飞机；停止态红色）
+_SEND_ICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ffffff">'
+    '<path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>'
+)
+_SEND_BTN_QSS = (
+    "QPushButton { border: none; border-radius: 20px;"
+    " background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #60a5fa, stop:1 #3b82f6); }"
+    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+    "   stop:0 #3b82f6, stop:1 #2563eb); }"
+    "QPushButton:pressed { background: #2563eb; }"
+    "QPushButton:disabled { background: #4b5563; }"
+)
+_STOP_BTN_QSS = (
+    "QPushButton { border: none; border-radius: 20px; color: #ffffff;"
+    " background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f87171, stop:1 #dc2626);"
+    " font-size: 20px; font-weight: bold; }"
+    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+    "   stop:0 #dc2626, stop:1 #b91c1c); }"
+    "QPushButton:disabled { background: #4b5563; }"
+)
+
+
+def _make_send_icon(size=34):
+    """用 SVG 渲染白色纸飞机图标（发送按钮，斜向右上）。"""
+    renderer = QSvgRenderer(_SEND_ICON_SVG.encode("utf-8"))
+    if not renderer.isValid():
+        return QIcon()
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing, True)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
 
 
 def _prepare_user_image(src):
@@ -257,6 +303,15 @@ class DropTextEdit(QTextEdit):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setAcceptDrops(True)
+        self._min_h = 80
+        self._max_h = 280   # 约 12 行上限
+        self.setFixedHeight(self._min_h)
+        self.textChanged.connect(self._update_height)
+
+    def _update_height(self):
+        doc_h = int(self.document().size().height())
+        h = max(self._min_h, min(self._max_h, doc_h + 14))
+        self.setFixedHeight(h)
 
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter) \
@@ -635,6 +690,151 @@ class ReplaceDialog(QDialog):
         dlg.exec()
 
 
+# ---- 列表 item 渲染 delegate（P1 修复④⑤：行间距 + 圆角 + 两行时间）----
+class SessionDelegate(QStyledItemDelegate):
+    """会话列表：圆角卡片 + 标题（左）+ 右下角浅色时间。"""
+
+    TITLE_COLOR = QColor("#f8fafc")
+    TIME_COLOR = QColor("#94a3b8")
+    SELECTED_BG = QColor(59, 130, 246, 70)
+    HOVER_BG = QColor(255, 255, 255, 20)
+
+    def sizeHint(self, option, index):
+        return QSize(option.rect.width(), 56)
+
+    def paint(self, painter, option, index):
+        title = index.data(Qt.UserRole + 1) or "未命名会话"
+        time_str = index.data(Qt.UserRole + 2) or ""
+        selected = bool(option.state & QStyle.State_Selected)
+        hover = bool(option.state & QStyle.State_MouseOver)
+
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+
+        rect = option.rect.adjusted(4, 4, -4, -4)
+        if selected:
+            painter.setBrush(self.SELECTED_BG)
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(rect, 10, 10)
+        elif hover:
+            painter.setBrush(self.HOVER_BG)
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(rect, 10, 10)
+
+        painter.setPen(self.TITLE_COLOR)
+        f = painter.font()
+        f.setPointSize(10)
+        painter.setFont(f)
+        title_rect = QRect(rect.left() + 12, rect.top() + 7, rect.width() - 24, 22)
+        painter.drawText(title_rect, Qt.AlignLeft | Qt.AlignVCenter,
+                         painter.fontMetrics().elidedText(title, Qt.ElideRight, title_rect.width()))
+
+        painter.setPen(self.TIME_COLOR)
+        f2 = painter.font()
+        f2.setPointSize(8)
+        painter.setFont(f2)
+        time_rect = QRect(rect.left() + 12, rect.top() + 29, rect.width() - 24, 18)
+        painter.drawText(time_rect, Qt.AlignRight | Qt.AlignVCenter, time_str)
+
+        painter.restore()
+
+
+class FileItemDelegate(QStyledItemDelegate):
+    """文件侧栏：圆角卡片 + 单行文件名。"""
+
+    TEXT_COLOR = QColor("#f8fafc")
+    SELECTED_BG = QColor(59, 130, 246, 70)
+    HOVER_BG = QColor(255, 255, 255, 20)
+
+    def sizeHint(self, option, index):
+        return QSize(option.rect.width(), 36)
+
+    def paint(self, painter, option, index):
+        text = index.data(Qt.DisplayRole) or ""
+        selected = bool(option.state & QStyle.State_Selected)
+        hover = bool(option.state & QStyle.State_MouseOver)
+
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        rect = option.rect.adjusted(4, 3, -4, -3)
+        if selected:
+            painter.setBrush(self.SELECTED_BG)
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(rect, 9, 9)
+        elif hover:
+            painter.setBrush(self.HOVER_BG)
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(rect, 9, 9)
+
+        painter.setPen(self.TEXT_COLOR)
+        text_rect = QRect(rect.left() + 12, rect.top(), rect.width() - 24, rect.height())
+        painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter,
+                         painter.fontMetrics().elidedText(text, Qt.ElideRight, text_rect.width()))
+        painter.restore()
+
+
+class SettingsDialog(QDialog):
+    """设置弹窗：API Key / TurboWarp 路径（模型/档位已移回主窗口左上角，P2 修复⑥）。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("设置")
+        self.resize(480, 200)
+        cfg = script.LLM_CONFIG
+        form = QFormLayout(self)
+        self.key_input = QLineEdit(cfg["api_key"])
+        self.key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.key_input.setPlaceholderText("填入 API Key")
+        self.turbo_input = QLineEdit(cfg["turbowarp_path"] or script.detect_turbowarp())
+        self.turbo_input.setPlaceholderText("TurboWarp.exe 的完整路径（用于生成后自动打开）")
+        turbo_row = QHBoxLayout()
+        turbo_row.addWidget(self.turbo_input, 1)
+        browse_btn = QPushButton("浏览…")
+        browse_btn.clicked.connect(self._on_browse_turbo)
+        turbo_row.addWidget(browse_btn)
+        form.addRow("API Key", self.key_input)
+        form.addRow("TurboWarp", turbo_row)
+        save_btn = QPushButton("保存设置")
+        save_btn.clicked.connect(self._on_save)
+        form.addRow("", save_btn)
+
+    def _on_browse_turbo(self):
+        path, _ = QFileDialog.getOpenFileName(self, "选择 TurboWarp 程序", "", "可执行文件 (*.exe)")
+        if path:
+            self.turbo_input.setText(path)
+
+    def _on_save(self):
+        api_key = self.key_input.text().strip()
+        turbo = self.turbo_input.text().strip()
+        script.save_config(api_key=api_key, turbowarp_path=turbo)
+        script.LLM_CONFIG.update({"api_key": api_key, "turbowarp_path": turbo})
+        self.accept()
+
+
+class WebBridge(QObject):
+    """QWebChannel 桥对象：暴露给前端 JS 调用的方法。
+
+    P0 步骤 1 先只做 onReady 验证双向通信；输入/发送仍走 Qt 侧，后续步骤再补 send/stop。
+    """
+
+    def __init__(self, main=None, parent=None):
+        super().__init__(parent)
+        self._main = main
+
+    @Slot()
+    def onReady(self):
+        """前端已加载、桥已就绪（JS 在 qwebchannel 连接后调用）。"""
+        print("[webview] 前端已就绪，QWebChannel 桥连通。")
+
+    @Slot(str)
+    def editMessage(self, text):
+        """前端「修改」按钮：把用户消息填回输入框（P0 步骤③）。"""
+        main = self._main
+        if main is not None:
+            main.input.setPlainText(text)
+            main.input.setFocus()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -647,96 +847,142 @@ class MainWindow(QMainWindow):
         self.feedback_queue = queue.Queue()
         self.thread = None
         self.mode = "idle"  # idle | generating | awaiting_feedback
+        self._stop_event = threading.Event()  # 停止生成（P0 步骤 3）
+        self._stream_text = []  # 流式 chunk 累积（P2 步骤 6 会话记录用）
         self.current_output_sb3 = None  # 当前项目生成的 .sb3 路径
+        self.current_project_name = "my_ai_game"  # 当前项目名（P0 步骤⑥，替代原 project_input）
         self._pending_drop = []        # 反馈态拖入、待会话结束后再处理的文件路径
         self._pending_replace = None   # (图片附件列表, 提示文字)：导入 .sb3 后要打开的替换面板
+        self._finish_banner_shown = False  # 是否已展示过「🎉 完成」横幅（P0 修复③：反馈结束不重复弹）
+        self._prices = {}  # 模型价格表（LiteLLM，后台线程加载后回填）
         self._pump_timer = QTimer(self)
         self._pump_timer.timeout.connect(self._pump_ui_queue)
         self._pump_timer.start(80)
 
+        # 后台加载模型价格表（⑦，不影响主流程；失败则 tooltip 只显示模型名/多模态）
+        threading.Thread(target=self._load_prices_bg, daemon=True).start()
+        # 后台检测新版本（⑩，Gitee Releases API）
+        threading.Thread(target=self._check_update_bg, daemon=True).start()
+
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
+        outer = QHBoxLayout(central)
+        outer.setContentsMargins(0, 0, 0, 0)
 
-        cfg = script.LLM_CONFIG
+        # ---- 左侧：会话历史列表 ----
+        left = QWidget()
+        left.setFixedWidth(210)
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(8, 8, 8, 8)
+        new_btn = QPushButton("＋ 新建会话")
+        new_btn.clicked.connect(self._on_new_session)
+        left_layout.addWidget(new_btn)
+        self.session_list = QListWidget()
+        self.session_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.session_list.customContextMenuRequested.connect(self._on_session_menu)
+        self.session_list.itemClicked.connect(self._on_session_clicked)
+        self.session_list.setItemDelegate(SessionDelegate(self.session_list))
+        self.session_list.setSpacing(2)
+        left_layout.addWidget(self.session_list, 1)
 
-        # ---- 设置区 ----
-        box = QGroupBox("设置")
-        form = QFormLayout(box)
+        # ---- 右侧：主界面（layout 指向右侧容器，后续 addWidget 不变）----
+        right = QWidget()
+        layout = QVBoxLayout(right)
 
+        # ---- 顶栏（折叠开关 + 右上角齿轮）----
+        self._toolbar_expanded = False
+        self._toolbar_anim = None
         self._provider_keys = list(script.PROVIDERS.keys())
         self._tier_keys = []
 
         self.provider_box = QComboBox()
         self.provider_box.addItems([script.PROVIDERS[k]["display"] for k in self._provider_keys])
         self.provider_box.currentIndexChanged.connect(self._on_provider_changed)
-
         self.tier_box = QComboBox()
         self.tier_box.currentIndexChanged.connect(self._on_tier_changed)
+        self._apply_model_style()
 
-        self.tier_hint = QLabel("")
-        self.tier_hint.setStyleSheet("color: #B45309;")
+        top_bar = QHBoxLayout()
+        top_bar.addStretch(1)
+        gear_btn = QToolButton()
+        gear_btn.setText("⚙")
+        gear_btn.setToolTip("设置（API Key / TurboWarp）")
+        gear_btn.setFixedSize(36, 36)
+        gear_btn.setCursor(Qt.PointingHandCursor)
+        gear_btn.clicked.connect(self._open_settings)
+        top_bar.addWidget(gear_btn)
+        layout.addLayout(top_bar)
 
-        self.key_input = QLineEdit(cfg["api_key"])
-        self.key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.key_input.setPlaceholderText("填入 API Key")
-
-        self.turbo_input = QLineEdit(cfg["turbowarp_path"] or script.detect_turbowarp())
-        self.turbo_input.setPlaceholderText("TurboWarp.exe 的完整路径（用于生成后自动打开）")
-        turbo_row = QHBoxLayout()
-        turbo_row.addWidget(self.turbo_input, 1)
-        browse_btn = QPushButton("浏览…")
-        browse_btn.clicked.connect(self._on_browse_turbo)
-        turbo_row.addWidget(browse_btn)
-
-        form.addRow("模型厂商", self.provider_box)
-        form.addRow("模型档位", self.tier_box)
-        form.addRow("", self.tier_hint)
-        form.addRow("API Key", self.key_input)
-        form.addRow("TurboWarp", turbo_row)
-
-        self.save_cfg_btn = QPushButton("保存设置")
-        form.addRow("", self.save_cfg_btn)
-        layout.addWidget(box)
-
-        # 初始选中匹配的预设
-        self._select_matching()
-
-        # ---- 日志区 ----
-        self.chat = QTextEdit()
-        self.chat.setReadOnly(True)
-        layout.addWidget(self.chat)
-
-        # ---- 项目名 ----
-        project_row = QHBoxLayout()
-        project_row.addWidget(QLabel("项目名"))
-        self.project_input = QLineEdit()
-        self.project_input.setPlaceholderText("留空则用默认 my_ai_game；填了名字会生成同名 .sb3，可保存多个项目")
-        project_row.addWidget(self.project_input, 1)
-        layout.addLayout(project_row)
+        # ---- 对话区（WebEngine 渲染前端）----
+        self.chat = QWebEngineView()
+        self.web_channel = QWebChannel()
+        self.web_bridge = WebBridge(self)
+        self.web_channel.registerObject("bridge", self.web_bridge)
+        self.chat.page().setWebChannel(self.web_channel)
+        web_path = os.path.join(script.app_dir(), "ui", "webview.html")
+        self.chat.setUrl(QUrl.fromLocalFile(web_path))
+        layout.addWidget(self.chat, 1)
+        self._web_ready = False
+        self._pending_js = []
+        self.chat.loadFinished.connect(self._on_web_loaded)
 
         # ---- 附件区 + 输入区（两块都是放置区）----
         # 说明：「打开已有项目」不再用独立按钮 —— 把 .sb3 拖进输入框即可（见 UI_PLAN 3.3）。
         self.attach_bar = AttachmentBar()
         layout.addWidget(self.attach_bar)
 
+        # ---- 折叠开关（三角形箭头，在模型/档位上面）----
+        self.toolbar_toggle = QToolButton()
+        self.toolbar_toggle.setText("▲")
+        self.toolbar_toggle.setToolTip("展开/收起操作栏")
+        self.toolbar_toggle.setFixedSize(36, 24)
+        self.toolbar_toggle.setCursor(Qt.PointingHandCursor)
+        self.toolbar_toggle.clicked.connect(self._on_toggle_toolbar)
+        layout.addWidget(self.toolbar_toggle)
+
+        # ---- 可折叠操作侧栏（P2 修复⑨）：打开 sb3 / 替换素材 ----
+        self.toolbar = QWidget()
+        self.toolbar_layout = QHBoxLayout(self.toolbar)
+        self.toolbar_layout.setContentsMargins(0, 2, 0, 6)
+        self.open_btn = QPushButton("打开生成的 .sb3")
+        self.open_btn.setVisible(False)
+        self.replace_btn = QPushButton("替换素材（用自定义图片）")
+        self.replace_btn.setVisible(False)
+        self.toolbar_layout.addWidget(self.open_btn)
+        self.toolbar_layout.addWidget(self.replace_btn)
+        self.toolbar_layout.addStretch(1)
+        self.toolbar.setMaximumHeight(0)  # 初始收起
+        layout.addWidget(self.toolbar)
+
+        # ---- 模型/档位选择（输入框左上角，浅色 hover 变亮）----
+        model_row = QHBoxLayout()
+        model_row.setSpacing(6)
+        model_row.addWidget(self.provider_box)
+        sep = QLabel("|")
+        sep.setStyleSheet("color: #9aa0a6;")
+        model_row.addWidget(sep)
+        model_row.addWidget(self.tier_box)
+        model_row.addStretch(1)
+        layout.addLayout(model_row)
+
+        # ---- 输入区（胶囊形发送按钮 + 纸飞机图标）----
         row = QHBoxLayout()
+        row.setSpacing(8)
         self.input = DropTextEdit()
         self.input.setPlaceholderText(
             "描述你想做的项目，或把 .sb3 / 图片拖进来（Enter 发送，Shift+Enter 换行）")
-        self.input.setFixedHeight(78)
-        self.send_btn = QPushButton("发送")
+        self.send_btn = QPushButton()
+        self.send_btn.setCursor(Qt.PointingHandCursor)
+        self.send_btn.setFixedSize(40, 80)   # 胶囊：高:宽 ≈ 2:1
+        self.send_btn.setIcon(_make_send_icon())
+        self.send_btn.setIconSize(QSize(34, 34))
+        self.send_btn.setStyleSheet(_SEND_BTN_QSS)
+        self.send_btn.setToolTip("发送")
         row.addWidget(self.input, 1)
-        row.addWidget(self.send_btn, 0, Qt.AlignBottom)
+        row.addWidget(self.send_btn, 0)
         layout.addLayout(row)
 
-        self.open_btn = QPushButton("打开生成的 .sb3")
-        self.open_btn.setVisible(False)
-        layout.addWidget(self.open_btn)
-
-        self.replace_btn = QPushButton("替换素材（用自定义图片）")
-        self.replace_btn.setVisible(False)
-        layout.addWidget(self.replace_btn)
+        self._select_matching()
 
         self.send_btn.clicked.connect(self._on_send)
         self.input.send_requested.connect(self._on_send)
@@ -745,12 +991,339 @@ class MainWindow(QMainWindow):
         self.attach_bar.changed.connect(self._on_attachments_changed)
         self.open_btn.clicked.connect(self._on_open)
         self.replace_btn.clicked.connect(self._on_replace)
-        self.save_cfg_btn.clicked.connect(self._on_save_config)
+
+        # ---- 分割器：左会话列表 + 中主界面 + 右文件边栏（P1 步骤②）----
+        self.file_sidebar = QListWidget()
+        self.file_sidebar.setFixedWidth(200)
+        self.file_sidebar.setToolTip("会话关联文件（双击打开）")
+        self.file_sidebar.itemDoubleClicked.connect(self._on_file_item_double_clicked)
+        self.file_sidebar.setItemDelegate(FileItemDelegate(self.file_sidebar))
+        self.file_sidebar.setSpacing(2)
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(left)
+        splitter.addWidget(right)
+        splitter.addWidget(self.file_sidebar)
+        splitter.setSizes([190, 600, 200])
+        outer.addWidget(splitter)
+
+        # ---- 会话管理 ----
+        self._init_sessions()
 
         if not script.LLM_CONFIG["api_key"]:
-            self.chat.append("⚠️ 请先在上方“设置”里填入 API Key 并点“保存设置”，再开始生成。")
+            self._push_js("window.appendAi", "⚠️ 尚未配置 API Key，请点右上角 ⚙ 填入后再生成。")
 
-    # ---- 设置 ----
+    # ---- 会话管理（P2 步骤 6）----
+    def _sessions_dir(self):
+        d = os.path.join(script.app_dir(), "sessions")
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    def _init_sessions(self):
+        self.sessions = {}
+        self.current_session_id = None
+        d = self._sessions_dir()
+        for fname in sorted(os.listdir(d)):
+            if not fname.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(d, fname), "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                continue
+            sid = data.get("id") or fname[:-5]
+            self.sessions[sid] = data
+        # 按活跃度（updated_at）降序加载，最新活跃的会话在最上面（P0 步骤①）
+        ordered = sorted(self.sessions.keys(),
+                         key=lambda s: self.sessions[s].get("updated_at", 0), reverse=True)
+        for sid in ordered:
+            item = QListWidgetItem()
+            self._set_session_item(item, self.sessions[sid])
+            self.session_list.addItem(item)
+        if not self.sessions:
+            self._create_session()
+        else:
+            self._switch_session(ordered[0])
+
+    def _format_session_time(self, ts):
+        dt = time.localtime(ts)
+        now = time.localtime()
+        if dt.tm_year == now.tm_year and dt.tm_yday == now.tm_yday:
+            return time.strftime("%H:%M", dt)
+        if dt.tm_year == now.tm_year:
+            return time.strftime("%m-%d", dt)
+        return time.strftime("%Y-%m-%d", dt)
+
+    def _set_session_item(self, item, data):
+        """把会话的标题/时间写入 item 的自定义数据（由 SessionDelegate 渲染两行）。"""
+        item.setData(Qt.UserRole, data.get("id"))
+        item.setData(Qt.UserRole + 1, data.get("title") or "未命名会话")
+        item.setData(Qt.UserRole + 2, self._format_session_time(
+            data.get("updated_at") or data.get("created_at") or 0))
+
+    def _refresh_session_item(self, sid):
+        """更新列表项数据并把该项移到顶部（活跃会话置顶，P0 步骤①）。"""
+        data = self.sessions.get(sid)
+        if not data:
+            return
+        for i in range(self.session_list.count()):
+            it = self.session_list.item(i)
+            if it.data(Qt.UserRole) == sid:
+                self._set_session_item(it, data)
+                if i != 0:
+                    self.session_list.takeItem(i)
+                    self.session_list.insertItem(0, it)
+                break
+
+    def _create_session(self):
+        sid = time.strftime("%Y%m%d_%H%M%S") + "_" + str(int(time.time() * 1000) % 1000000)
+        now = time.time()
+        data = {"id": sid, "title": "新会话", "messages": [], "steps": [], "files": [],
+                "created_at": now, "updated_at": now}
+        self.sessions[sid] = data
+        self.current_session_id = sid
+        item = QListWidgetItem()
+        self._set_session_item(item, data)
+        self.session_list.insertItem(0, item)  # 新建置顶
+        self.session_list.setCurrentItem(item)
+        self._save_session(sid)
+
+    def _switch_session(self, sid):
+        if sid not in self.sessions:
+            return
+        self.current_session_id = sid
+        # 高亮当前会话项（配合圆角 delegate 的选中态）
+        for i in range(self.session_list.count()):
+            it = self.session_list.item(i)
+            if it.data(Qt.UserRole) == sid:
+                self.session_list.setCurrentItem(it)
+                break
+        data = self.sessions[sid]
+        self._push_js("window.clearMessages")
+        for msg in data.get("messages", []):
+            if msg.get("role") == "user":
+                self._push_js("window.appendUser", msg.get("text", ""))
+            else:
+                self._push_js("window.appendAi", msg.get("text", ""))
+        for st in data.get("steps", []):
+            self._push_js("window.appendStep", st.get("kind"), st.get("status"),
+                           st.get("title"), st.get("detail", ""))
+        self._refresh_file_sidebar()
+        self._update_replace_btn()
+
+    def _save_session(self, sid):
+        data = self.sessions.get(sid)
+        if not data:
+            return
+        try:
+            with open(os.path.join(self._sessions_dir(), sid + ".json"), "w",
+                      encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    def _record_message(self, role, text):
+        if not self.current_session_id:
+            return time.time()
+        data = self.sessions.get(self.current_session_id)
+        if not data:
+            return time.time()
+        ts = time.time()
+        data["messages"].append({"role": role, "text": text, "time": ts})
+        data["updated_at"] = ts
+        if role == "user" and data.get("title") == "新会话":
+            data["title"] = self._derive_session_title(text)
+        self._refresh_session_item(self.current_session_id)
+        self._save_session(self.current_session_id)
+        return ts
+
+    def _derive_session_title(self, text):
+        """从首条用户消息提炼会话标题（P1 修复⑥）：优先「叫/命名 xxx」，否则清洗引导词。"""
+        p = (text or "").strip()
+        if not p:
+            return "新会话"
+        # 1. 明确命名「叫/命名/称为 xxx」
+        m = re.search(r"(?:叫|叫做|命名|称为|名为)\s*[「『\"'《]?\s*([A-Za-z0-9_\u4e00-\u9fa5]{1,20})", p)
+        if m:
+            name = m.group(1)
+            name = re.sub(r"^(一个|这个|那个)", "", name)
+            name = re.sub(r"(的游戏|的项目|的小程序|的应用|的作品|的程序|的动画|的教程)$", "", name)
+            name = name.strip()
+            if name:
+                return name
+        # 2. 「打开已有项目：xxx」这类系统描述 → 取真实项目名
+        m = re.search(r"打开已有项目[：:]\s*(.+)", p)
+        if m:
+            name = os.path.splitext(os.path.basename(m.group(1).strip()))[0]
+            return name[:16] or "新会话"
+        # 3. 清洗：去 URL、去标点、去引导/无意义词，截取有意义片段
+        cleaned = re.sub(r"https?://\S+", "", p)
+        cleaned = re.sub(r"[，。！？、,.!?;；:：\s]+", " ", cleaned)
+        cleaned = re.sub(
+            r"(请|帮我|麻烦|我想|我要|我希望|我想要|希望|想要|来一个|来"
+            r"|做一个|做个|生成一个|生成|创建一个|创建|打开|链接|这个|那个|一下|把|给|吧|呀|呢)",
+            "", cleaned)
+        cleaned = cleaned.strip()
+        return cleaned[:16] or "新会话"
+
+    def _record_step(self, kind, status, title, detail=""):
+        if not self.current_session_id:
+            return
+        data = self.sessions.get(self.current_session_id)
+        if not data:
+            return
+        data["steps"].append({"kind": kind, "status": status, "title": title, "detail": detail})
+        data["updated_at"] = time.time()
+        self._refresh_session_item(self.current_session_id)
+        self._save_session(self.current_session_id)
+
+    # ---- 会话关联文件（P1 步骤②⑤）----
+    def _record_file(self, type_, path):
+        """把文件（拖入的 sb3/图片，或生成的 sb3）记录到当前会话。"""
+        if not self.current_session_id or not path:
+            return
+        data = self.sessions.get(self.current_session_id)
+        if not data:
+            return
+        files = data.setdefault("files", [])
+        base = os.path.basename(path)
+        for f in files:
+            if f.get("path") == path:
+                return
+            # sb3 按 basename 去重：同一项目只留一条，path 更新为工作副本（指向最新编译产物）
+            if type_ == "sb3" and f.get("type") == "sb3" \
+                    and os.path.basename(f.get("path", "")) == base:
+                f["path"] = path
+                f["name"] = base
+                f["time"] = time.time()
+                data["updated_at"] = time.time()
+                self._refresh_session_item(self.current_session_id)
+                self._refresh_file_sidebar()
+                self._save_session(self.current_session_id)
+                return
+        files.append({"path": path, "type": type_, "name": base,
+                      "time": time.time()})
+        data["updated_at"] = time.time()
+        self._refresh_session_item(self.current_session_id)
+        self._refresh_file_sidebar()
+        if type_ == "sb3":
+            self._update_replace_btn()
+        self._save_session(self.current_session_id)
+
+    def _session_sb3_list(self):
+        data = self.sessions.get(self.current_session_id) if self.current_session_id else None
+        if not data:
+            return []
+        return [f["path"] for f in data.get("files", []) if f.get("type") == "sb3"]
+
+    def _refresh_file_sidebar(self):
+        if not hasattr(self, "file_sidebar"):
+            return
+        self.file_sidebar.clear()
+        data = self.sessions.get(self.current_session_id) if self.current_session_id else None
+        if not data:
+            return
+        for f in data.get("files", []):
+            icon = {"sb3": "📦", "image": "🖼"}.get(f.get("type"), "📄")
+            item = QListWidgetItem(f"{icon} {f.get('name')}")
+            item.setData(Qt.UserRole, f.get("path"))
+            item.setToolTip(f.get("path"))
+            self.file_sidebar.addItem(item)
+
+    def _on_file_item_double_clicked(self, item):
+        path = item.data(Qt.UserRole)
+        if not path or not os.path.exists(path):
+            return
+        if path.lower().endswith(".sb3"):
+            script.open_sb3(path)
+        else:
+            try:
+                os.startfile(path)
+            except Exception:
+                pass
+
+    def _update_replace_btn(self):
+        """有 sb3 时「替换素材」按钮常驻（P1 步骤⑤）。"""
+        has = bool(self._session_sb3_list()) or bool(
+            self.current_output_sb3 and os.path.exists(self.current_output_sb3))
+        self.replace_btn.setVisible(has)
+
+    def _resolve_replace_sb3(self):
+        """确定替换素材要操作的目标 sb3：当前已加载的优先，否则唯一 sb3，多个则弹窗选择。"""
+        cands = self._session_sb3_list()
+        if self.current_output_sb3 and os.path.exists(self.current_output_sb3):
+            return self.current_output_sb3
+        # 回退：当前项目名对应的 sb3（例如从旧会话恢复、current_output_sb3 尚未赋值）
+        if self.current_project_name:
+            _, sb3 = script.project_paths(self.current_project_name)
+            if os.path.exists(sb3):
+                return sb3
+        if not cands:
+            return None
+        if len(cands) == 1:
+            return cands[0]
+        names = [os.path.basename(p) for p in cands]
+        chosen, ok = QInputDialog.getItem(
+            self, "选择要替换的项目", "当前会话有多个 .sb3，请选择要操作的项目：",
+            names, 0, False)
+        if not ok or not chosen:
+            return None
+        return cands[names.index(chosen)]
+
+    def _on_new_session(self):
+        self._create_session()
+        self._push_js("window.clearMessages")
+        self.input.clear()
+        self.attach_bar.clear()
+        self._refresh_file_sidebar()
+        self._update_replace_btn()
+
+    def _on_session_clicked(self, item):
+        sid = item.data(Qt.UserRole)
+        if sid and sid != self.current_session_id:
+            self._switch_session(sid)
+
+    def _on_session_menu(self, pos):
+        item = self.session_list.itemAt(pos)
+        if not item:
+            return
+        sid = item.data(Qt.UserRole)
+        menu = QMenu(self)
+        del_action = menu.addAction("删除会话")
+        action = menu.exec(self.session_list.mapToGlobal(pos))
+        if action == del_action:
+            self._delete_session(sid)
+
+    def _delete_session(self, sid):
+        if sid not in self.sessions:
+            return
+        del self.sessions[sid]
+        for i in range(self.session_list.count()):
+            if self.session_list.item(i).data(Qt.UserRole) == sid:
+                self.session_list.takeItem(i)
+                break
+        try:
+            os.remove(os.path.join(self._sessions_dir(), sid + ".json"))
+        except Exception:
+            pass
+        if sid == self.current_session_id:
+            self.current_session_id = None
+            if self.sessions:
+                self._switch_session(list(self.sessions.keys())[-1])
+            else:
+                self._create_session()
+
+    # ---- 模型/档位选择（P2 修复⑥：主窗口左上角，浅色 hover 变亮）----
+    def _apply_model_style(self):
+        style = (
+            "QComboBox { color: #8a8a9a; border: none; background: transparent;"
+            " padding: 2px 6px; font-size: 12px; }"
+            "QComboBox:hover { color: #f8fafc; }"
+            "QComboBox::drop-down { border: none; width: 14px; }"
+            "QComboBox QAbstractItemView { color: #1a1a1a; background: #ffffff; }"
+        )
+        self.provider_box.setStyleSheet(style)
+        self.tier_box.setStyleSheet(style)
+
     def _refresh_tiers(self):
         pidx = self.provider_box.currentIndex()
         provider = self._provider_keys[pidx]
@@ -774,23 +1347,17 @@ class MainWindow(QMainWindow):
         self.tier_box.blockSignals(True)
         self.tier_box.setCurrentIndex(tidx)
         self.tier_box.blockSignals(False)
-        self._apply_tier(tidx)
+        self._apply_provider_tier()
 
     def _on_provider_changed(self, index):
         self._refresh_tiers()
-        self._apply_tier(self.tier_box.currentIndex())
         self._apply_provider_tier()
 
     def _on_tier_changed(self, index):
-        self._apply_tier(index)
         self._apply_provider_tier()
 
     def _apply_provider_tier(self):
-        """把下拉框当前的 provider/tier 即时同步到 LLM_CONFIG 并落盘。
-
-        只更新 provider/tier（及据此解析出的 base_url/models），不动 api_key
-        和 turbowarp_path（那两个仍由「保存设置」处理）。
-        """
+        """把下拉框当前的 provider/tier 即时同步到 LLM_CONFIG 并落盘。"""
         pidx = self.provider_box.currentIndex()
         if not (0 <= pidx < len(self._provider_keys)):
             return
@@ -802,50 +1369,98 @@ class MainWindow(QMainWindow):
             "provider": provider, "tier": tier, "base_url": base_url, "models": models,
         })
         script.save_config(provider=provider, tier=tier)
-
-    def _apply_tier(self, index):
-        if 0 <= index < len(self._tier_keys):
-            tier = self._tier_keys[index]
-            tier_label = dict(script.TIERS)[tier]
-            if tier == "powerful":
-                self.tier_hint.setStyleSheet("color: #B45309;")
-                self.tier_hint.setText(f"⚠️ 当前是【{tier_label}】档，费用较高，请确认是否要用。")
+        # 多模态提示 + 价格放到 tooltip（P0 步骤⑧ / ⑦，不占版面）
+        primary = models[0] if models else ""
+        if primary:
+            vision = "支持读图" if script.supports_vision(primary) else "不支持读图"
+            price = pricing.get_model_price(primary, self._prices)
+            if price:
+                tip = (f"{primary} · {vision}\n"
+                       f"输入 ¥{price[0]:.2f}/M · 输出 ¥{price[1]:.2f}/M")
             else:
-                self.tier_hint.setStyleSheet("color: #52525B;")
-                self.tier_hint.setText(f"当前是【{tier_label}】档。")
+                tip = f"{primary} · {vision}"
+            self.provider_box.setToolTip(tip)
         else:
-            self.tier_hint.setText("")
+            self.provider_box.setToolTip("")
 
-    def _on_browse_turbo(self):
-        path, _ = QFileDialog.getOpenFileName(self, "选择 TurboWarp 程序", "", "可执行文件 (*.exe)")
-        if path:
-            self.turbo_input.setText(path)
+    # ---- 设置 ----
+    def _open_settings(self):
+        dlg = SettingsDialog(self)
+        dlg.exec()
 
-    def _on_save_config(self):
-        api_key = self.key_input.text().strip()
-        turbo = self.turbo_input.text().strip()
-        pidx = self.provider_box.currentIndex()
-        provider = self._provider_keys[pidx]
-        tidx = self.tier_box.currentIndex()
-        tier = self._tier_keys[tidx] if 0 <= tidx < len(self._tier_keys) else script.DEFAULT_TIER
-        script.save_config(provider=provider, tier=tier, api_key=api_key, turbowarp_path=turbo)
-        base_url, models = script.resolve_models(provider, tier)
-        script.LLM_CONFIG.update({
-            "provider": provider, "tier": tier, "api_key": api_key,
-            "base_url": base_url, "models": models, "turbowarp_path": turbo,
-        })
-        self.chat.append(f"✅ 设置已保存（{script.PROVIDERS[provider]['display']} · {dict(script.TIERS)[tier]}）。")
+    # ---- 可折叠操作侧栏（P2 修复⑨）----
+    def _set_toolbar_expanded(self, expanded):
+        """展开/收起操作侧栏（上浮/下沉动画）。"""
+        self._toolbar_expanded = expanded
+        self.toolbar_toggle.setText("▼" if expanded else "▲")
+        target = 44 if expanded else 0
+        anim = QPropertyAnimation(self.toolbar, b"maximumHeight", self)
+        anim.setDuration(180)
+        anim.setStartValue(self.toolbar.maximumHeight())
+        anim.setEndValue(target)
+        anim.setEasingCurve(QEasingCurve.InOutCubic)
+        self._toolbar_anim = anim
+        anim.start()
+
+    def _on_toggle_toolbar(self):
+        # 侧栏无内容（无 sb3）时不响应，避免空侧栏展开/符号变化
+        if not (self.open_btn.isVisible() or self.replace_btn.isVisible()):
+            return
+        self._set_toolbar_expanded(not self._toolbar_expanded)
 
     # ---- 界面更新（主线程） ----
+    def _push_js(self, fn, *args):
+        """通过 runJavaScript 调用前端全局函数推消息。
+
+        WebEngine 加载是异步的：加载完成前先缓存，加载完成后（_on_web_loaded）再补推，
+        避免前端 JS 尚未定义时消息丢失。
+        """
+        js = fn + "(" + ",".join(json.dumps(a) for a in args) + ")"
+        if self._web_ready:
+            self.chat.page().runJavaScript(js)
+        else:
+            self._pending_js.append(js)
+
+    def _on_web_loaded(self, ok):
+        self._web_ready = True
+        for js in self._pending_js:
+            self.chat.page().runJavaScript(js)
+        self._pending_js.clear()
+
     def _append_log(self, text):
-        self.chat.append(html.escape(text))
+        self._record_message("ai", text)
+        self._push_js("window.appendAi", text)
 
     def _append_user(self, text):
-        self.chat.append(f"<b>你：</b> {html.escape(text)}")
+        ts = self._record_message("user", text)
+        self._push_js("window.appendUser", text, ts)
 
     # ---- 后台线程消息通道（工作线程只往队列里放，绝不触碰 Qt）----
     def _log_line(self, text):
         self._ui_queue.put(("log", text))
+
+    def _load_prices_bg(self):
+        """后台线程：加载模型价格表（⑦），完成后经队列回填主线程。"""
+        prices = pricing.load_prices()
+        self._ui_queue.put(("prices_loaded", prices))
+
+    def _check_update_bg(self):
+        """后台线程：检测新版本（⑩），有新版本经队列通知主线程弹窗。"""
+        result = updater.check_update()
+        if result:
+            self._ui_queue.put(("update_available", result))
+
+    def _prompt_update(self, latest, url):
+        """弹窗提示新版本，可一键跳转 Gitee 发行版下载页。"""
+        box = QMessageBox(self)
+        box.setWindowTitle("发现新版本")
+        box.setText(f"检测到新版本 v{latest}（当前 v{updater.APP_VERSION}）")
+        box.setInformativeText("是否前往 Gitee 下载最新版本？")
+        go = box.addButton("前往下载", QMessageBox.AcceptRole)
+        box.addButton("稍后再说", QMessageBox.RejectRole)
+        box.exec()
+        if box.clickedButton() == go:
+            webbrowser.open(url)
 
     def _pump_ui_queue(self):
         """主线程定时器：把后台线程塞进队列的消息派发到界面（替代原来的跨线程信号）。"""
@@ -855,27 +1470,48 @@ class MainWindow(QMainWindow):
             except queue.Empty:
                 return
             if kind == "log":
-                self.chat.append(html.escape(payload))
+                self._record_message("ai", payload)
+                self._push_js("window.appendAi", payload)
+            elif kind == "step":
+                k, status, title, detail = payload
+                self._record_step(k, status, title, detail)
+                self._push_js("window.appendStep", k, status, title, detail)
+            elif kind == "chunk":
+                self._stream_text.append(payload)
+                self._push_js("window.appendChunk", payload)
+            elif kind == "chunk_end":
+                if self._stream_text:
+                    self._record_message("ai", "".join(self._stream_text))
+                    self._stream_text.clear()
+                self._push_js("window.endStream")
             elif kind == "await_feedback":
                 self._on_await_feedback()
             elif kind == "finished":
                 self._on_finished(payload)
+            elif kind == "prices_loaded":
+                self._prices = payload or {}
+                self._apply_provider_tier()  # 刷新价格 tooltip
+            elif kind == "update_available":
+                self._prompt_update(*payload)
 
     def _on_await_feedback(self):
         self.mode = "awaiting_feedback"
         self.send_btn.setEnabled(True)
-        self.send_btn.setText("提交反馈")
-        self.input.setPlaceholderText("描述要修改的问题（留空提交 = 结束本次）")
+        self._set_send_btn("send", "发送修改意见")
+        self.input.setPlaceholderText("描述要修改的问题，或直接点箭头结束本轮")
 
     def _on_finished(self, has_sb3):
         self.mode = "idle"
         self.send_btn.setEnabled(True)
-        self.send_btn.setText("发送")
+        self._set_send_btn("send")
         self.input.setPlaceholderText(
             "描述你想做的项目，或把 .sb3 / 图片拖进来（Enter 发送，Shift+Enter 换行）")
         if has_sb3:
             self.open_btn.setVisible(True)
             self.replace_btn.setVisible(True)
+            self._set_toolbar_expanded(True)   # 有 sb3 时自动展开操作侧栏
+            if self.current_output_sb3:
+                self._record_file("sb3", self.current_output_sb3)
 
         # .sb3 + 图片：导入完成后接着打开替换面板
         pend = self._pending_replace
@@ -883,35 +1519,50 @@ class MainWindow(QMainWindow):
         if pend:
             imgs, hint = pend
             if has_sb3 and imgs:
-                self.chat.append("📎 项目已打开，正在打开替换素材面板…")
+                self._push_js("window.appendAi", "📎 项目已打开，正在打开替换素材面板…")
                 self._open_replace_dialog(pending_images=imgs, hint_text=hint)
             else:
-                self.chat.append("⚠️ 项目未能打开，已取消素材替换。")
+                self._push_js("window.appendAi", "⚠️ 项目未能打开，已取消素材替换。")
             return
 
         # 反馈态拖入的附件：等本次反馈会话结束后再落进附件栏
         if self._pending_drop:
             paths, self._pending_drop = self._pending_drop, []
             self._add_attachments(paths)
-            self.chat.append("📎 附件已加入，填写文字后点发送即可（或直接发送以替换素材）。")
+            self._push_js("window.appendAi", "📎 附件已加入，填写文字后点发送即可（或直接发送以替换素材）。")
             return
 
         if has_sb3:
-            self.chat.append("🎉 完成，点击下方按钮打开 .sb3 或替换素材。")
+            if not self._finish_banner_shown:
+                self._push_js("window.appendAi", "🎉 完成，点左上角 ▲ 展开操作栏打开 .sb3 或替换素材。")
+                self._finish_banner_shown = True
+            else:
+                self._push_js("window.appendAi", "✅ 本轮修改已结束。")
 
     # ---- 交互 ----
     def _on_send(self):
         text = self.input.toPlainText().strip()
         if self.mode == "generating":
+            # 生成中点击 = 停止（P0 步骤 3）
+            self._stop_event.set()
+            self.send_btn.setEnabled(False)
+            self._push_js("window.appendAi", "⏹ 正在停止…")
             return
         if self.mode == "awaiting_feedback":
             if text:
                 self._append_user(text)
-            self.input.clear()
-            self.feedback_queue.put(text)  # 空串表示结束本次
-            self.mode = "generating"
-            self.send_btn.setEnabled(False)
-            self.input.setPlaceholderText("处理中，请稍候…")
+                self.input.clear()
+                self.feedback_queue.put(text)
+                self.mode = "generating"
+                self.send_btn.setEnabled(False)
+                self.input.setPlaceholderText("处理中，请稍候…")
+            else:
+                # 无文字点箭头 = 结束本轮（发送按钮始终是箭头，无独立「结束」按钮）
+                self.input.clear()
+                self.feedback_queue.put("")
+                self.mode = "generating"
+                self.send_btn.setEnabled(False)
+                self.input.setPlaceholderText("正在结束本轮…")
             return
 
         # idle：分发（顺序：图片 → 素材替换入口 ＞ 纯 .sb3 打开 ＞ 纯文字生成）
@@ -929,7 +1580,7 @@ class MainWindow(QMainWindow):
                 self._append_log(f"📎 检测到 .sb3 + {len(images)} 张图片：先打开该项目，再替换素材…")
                 self._import_path(sb3, then_replace=images, then_hint=text)
                 return
-            work_dir, _ = script.project_paths(self.project_input.text().strip())
+            work_dir, _ = script.project_paths(self.current_project_name)
             if script.list_project_assets(work_dir):
                 # 有工程 + 图片 → 素材替换（带不带文字都一样；文字用于自动匹配到对应行）
                 self.attach_bar.clear()
@@ -939,7 +1590,7 @@ class MainWindow(QMainWindow):
                 self._open_replace_dialog(pending_images=images, hint_text=text)
                 return
             if not text:
-                self.chat.append("⚠️ 请先描述你想做的内容，图片会作为素材参与生成。")
+                self._push_js("window.appendAi", "⚠️ 请先描述你想做的内容，图片会作为素材参与生成。")
                 return
 
         if sb3:
@@ -949,26 +1600,39 @@ class MainWindow(QMainWindow):
             return
 
         if not script.LLM_CONFIG["api_key"]:
-            self.chat.append("⚠️ 请先在上方“设置”里填入 API Key 并点“保存设置”，再开始生成。")
+            self._push_js("window.appendAi", "⚠️ 尚未配置 API Key，请点右上角 ⚙ 填入后再生成。")
             return
         self._append_user(text + (f"（附 {len(images)} 张图片）" if images else ""))
         self.input.clear()
         self.attach_bar.clear()
         self._start(text, images or None)
 
+    def _set_send_btn(self, state, tooltip=""):
+        """统一发送按钮外观与提示（第三轮：纸飞机发送 / 红色停止）。"""
+        if state == "stop":
+            self.send_btn.setIcon(QIcon())
+            self.send_btn.setText("■")
+            self.send_btn.setStyleSheet(_STOP_BTN_QSS)
+            self.send_btn.setToolTip(tooltip or "停止生成")
+        else:
+            self.send_btn.setIcon(_make_send_icon())
+            self.send_btn.setText("")
+            self.send_btn.setStyleSheet(_SEND_BTN_QSS)
+            self.send_btn.setToolTip(tooltip or "发送")
+
     def _on_attachments_changed(self):
         """附件变化时给出操作提示（只在空闲态改按钮文案，避免打断进行中的状态）。"""
         if self.mode != "idle":
             return
         if self.attach_bar.project_sb3:
-            self.send_btn.setText("打开并修改")
+            self._set_send_btn("send", "打开并修改")
         else:
-            self.send_btn.setText("发送")
+            self._set_send_btn("send", "发送")
 
     def _on_files_dropped(self, paths):
         """统一处理拖入的文件：.sb3 → 项目附件；图片 → 预处理后作为图片附件。"""
         if self.mode == "generating":
-            self.chat.append("⚠️ 正在处理中，请等当前任务结束再拖入文件。")
+            self._push_js("window.appendAi", "⚠️ 正在处理中，请等当前任务结束再拖入文件。")
             return
         if self.mode == "awaiting_feedback":
             # 反馈态拖入附件：附件在反馈流程里不会被消费，故先确认是否结束本次会话（决策 2A）
@@ -978,10 +1642,10 @@ class MainWindow(QMainWindow):
                 "是否现在就结束本次反馈会话，并立即处理刚拖入的附件？",
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
             if ans != QMessageBox.Yes:
-                self.chat.append("⚠️ 已忽略拖入的附件（当前仍在反馈修改中）。")
+                self._push_js("window.appendAi", "⚠️ 已忽略拖入的附件（当前仍在反馈修改中）。")
                 return
             self._pending_drop = list(paths)
-            self.chat.append("⏳ 已结束本次反馈，正在处理附件…")
+            self._push_js("window.appendAi", "⏳ 已结束本次反馈，正在处理附件…")
             self.mode = "generating"
             self.send_btn.setEnabled(False)
             self.feedback_queue.put("")   # 空串 = 结束本次反馈
@@ -1012,6 +1676,10 @@ class MainWindow(QMainWindow):
                 rejected.append(f"{os.path.basename(path)}（只支持 .sb3 与图片）")
 
         new_images = [a for a in images if a not in self.attach_bar.images]
+        for a in new_images:
+            self._record_file("image", a["src"])
+        if sb3 and sb3 != self.attach_bar.project_sb3:
+            self._record_file("sb3", sb3)
         if sb3 != self.attach_bar.project_sb3 or new_images:
             # 一次性提交多个变更，只刷新一次界面
             self.attach_bar.project_sb3 = sb3
@@ -1022,7 +1690,7 @@ class MainWindow(QMainWindow):
             if added:
                 self._append_log("📎 已加入附件：" + "、".join(added))
         for name in rejected:
-            self.chat.append(f"⚠️ 已忽略：{name}")
+            self._push_js("window.appendAi", f"⚠️ 已忽略：{name}")
 
     def _on_open(self):
         if self.current_output_sb3:
@@ -1036,13 +1704,14 @@ class MainWindow(QMainWindow):
           结束后由 _on_finished 打开替换面板（决策 A：.sb3 + 图片）。
         """
         if self.mode == "generating":
-            self.chat.append("⚠️ 正在处理中，请等当前任务结束再打开其他项目。")
+            self._push_js("window.appendAi", "⚠️ 正在处理中，请等当前任务结束再打开其他项目。")
             return
         if not script._fractch_invoke():
-            self.chat.append("⚠️ 未找到 fractch，无法解包项目。请确认本目录下有 node.exe 和 fractch/。")
+            self._push_js("window.appendAi", "⚠️ 未找到 fractch，无法解包项目。请确认本目录下有 node.exe 和 fractch/。")
             return
         name = os.path.splitext(os.path.basename(path))[0]
-        self.project_input.setText(name)
+        self.current_project_name = name
+        self._finish_banner_shown = False
         self._append_user(f"打开已有项目：{path}")
         stop_after = bool(then_replace)
         if first_feedback and not stop_after:
@@ -1080,10 +1749,28 @@ class MainWindow(QMainWindow):
         self._open_replace_dialog()
 
     def _open_replace_dialog(self, pending_images=None, hint_text=""):
-        work_dir, output_sb3 = script.project_paths(self.project_input.text().strip())
-        assets = script.list_project_assets(work_dir)
+        target = self._resolve_replace_sb3()
+        if target is None:
+            self._push_js("window.appendAi", "⚠️ 还没有可替换的 .sb3，请先生成或打开一个项目。")
+            return
+        name = os.path.splitext(os.path.basename(target))[0]
+        work_dir, output_sb3 = script.project_paths(name)
+        assets = script.list_project_assets(work_dir) if os.path.isdir(work_dir) else []
+        # 目标不是当前已解包工程时，先同步解包（替换按钮常驻后可能操作历史 sb3）
+        if name != self.current_project_name or not assets:
+            try:
+                if not script.import_project(target, feedback_fn=lambda: "", project_name=name):
+                    self._push_js("window.appendAi", "⚠️ 解包项目失败。")
+                    return
+            except Exception as e:
+                traceback.print_exc()
+                self._push_js("window.appendAi", f"⚠️ 解包失败：{e}")
+                return
+            self.current_project_name = name
+            self.current_output_sb3 = output_sb3
+            assets = script.list_project_assets(work_dir)
         if not assets:
-            self.chat.append("⚠️ 还没有可替换的素材，请先生成一个项目。")
+            self._push_js("window.appendAi", "⚠️ 还没有可替换的素材，请先生成一个项目。")
             return
         dlg = ReplaceDialog(self, assets, work_dir,
                             pending_images=pending_images, hint_text=hint_text)
@@ -1095,11 +1782,11 @@ class MainWindow(QMainWindow):
             if script.replace_asset_image(work_dir, gs_file, rel, img):
                 replaced += 1
         if replaced:
-            self.chat.append(f"✅ 已替换 {replaced} 个素材，正在重新编译…")
+            self._push_js("window.appendAi", f"✅ 已替换 {replaced} 个素材，正在重新编译…")
             self.thread = _BgWorker(lambda: self._rebuild_bg(work_dir, output_sb3), self)
             self.thread.start()
         else:
-            self.chat.append("⚠️ 没有有效的替换。")
+            self._push_js("window.appendAi", "⚠️ 没有有效的替换。")
 
     def _rebuild_bg(self, work_dir, output_sb3):
         writer = _LogWriter(self._log_line)
@@ -1110,14 +1797,45 @@ class MainWindow(QMainWindow):
             traceback.print_exc()
             self._log_line(f"❌ 重新编译出错：{e}")
 
+    # ---- 项目名自动生成（P0 步骤⑥）----
+    def _derive_project_name(self, prompt):
+        """从需求文本提取项目名：优先匹配「叫/命名 xxx」，否则清洗需求文本。"""
+        p = (prompt or "").strip()
+        m = re.search(r"(?:叫|叫做|命名|称为|名为)\s*[「『\"'《]?\s*([A-Za-z0-9_\u4e00-\u9fa5]{1,20})", p)
+        if m:
+            name = m.group(1)
+            name = re.sub(r"^(一个|这个|那个)", "", name)
+            name = re.sub(r"(的游戏|的项目|的小程序|的应用|的作品|的程序|的动画|的教程)$", "", name)
+            name = name.strip()
+        else:
+            name = re.sub(r"[^\w\u4e00-\u9fa5]+", "_", p)[:20].strip("_")
+        return name or "my_ai_game"
+
+    def _unique_project_name(self, name):
+        """重名时追加 (2)、(3)...（P0 步骤⑥）。"""
+        work_dir, _ = script.project_paths(name)
+        if not (os.path.exists(work_dir) or os.path.exists(work_dir + ".sb3")):
+            return name
+        i = 2
+        while True:
+            candidate = f"{name}({i})"
+            wd, _ = script.project_paths(candidate)
+            if not (os.path.exists(wd) or os.path.exists(wd + ".sb3")):
+                return candidate
+            i += 1
+
     # ---- 后台线程 ----
     def _start(self, prompt, user_images=None):
         self.mode = "generating"
-        self.send_btn.setEnabled(False)
+        self._stop_event.clear()          # 每次生成前重置停止标志
+        self._finish_banner_shown = False
+        self._set_send_btn("stop", "停止生成")
+        self.send_btn.setEnabled(True)    # 生成中可点击「停止」
         self.open_btn.setVisible(False)
         self.replace_btn.setVisible(False)
         self.input.setPlaceholderText("生成中，请稍候…")
-        project_name = self.project_input.text().strip()
+        project_name = self._unique_project_name(self._derive_project_name(prompt))
+        self.current_project_name = project_name
         _, self.current_output_sb3 = script.project_paths(project_name)
         self.thread = _BgWorker(lambda: self._run(prompt, project_name, user_images), self)
         self.thread.start()
@@ -1129,22 +1847,51 @@ class MainWindow(QMainWindow):
             self._ui_queue.put(("await_feedback", None))
             return self.feedback_queue.get()
 
+        def step_cb(kind, status, title, detail=""):
+            self._ui_queue.put(("step", (kind, status, title, detail)))
+
+        # 流式 chunk：后台线程累积，约每 50ms 合并放一次队列（节流），避免 runJavaScript 过频
+        chunk_buf = []
+        chunk_last = [0.0]
+
+        def on_chunk(piece):
+            chunk_buf.append(piece)
+            now = time.time()
+            if now - chunk_last[0] >= 0.05:
+                chunk_last[0] = now
+                self._ui_queue.put(("chunk", "".join(chunk_buf)))
+                chunk_buf.clear()
+
+        def flush_chunks():
+            if chunk_buf:
+                self._ui_queue.put(("chunk", "".join(chunk_buf)))
+                chunk_buf.clear()
+            self._ui_queue.put(("chunk_end", None))
+
         try:
             with contextlib.redirect_stdout(writer):
                 ok = script.build_scratch_project(prompt, feedback_fn=feedback_fn,
                                                   project_name=project_name,
-                                                  user_images=user_images)
+                                                  user_images=user_images,
+                                                  stop_event=self._stop_event,
+                                                  step_cb=step_cb,
+                                                  on_chunk=on_chunk)
             has_sb3 = bool(ok) and os.path.exists(self.current_output_sb3)
+        except GenerationStopped:
+            self._log_line("⏹ 已停止生成。")
+            has_sb3 = False
         except Exception as e:
             traceback.print_exc()
             self._log_line(f"❌ 出错：{e}")
             has_sb3 = False
+        flush_chunks()
         self._ui_queue.put(("finished", has_sb3))
 
 
 def main():
     _setup_crash_log()
     app = QApplication(sys.argv)
+    app.setFont(QFont("Microsoft YaHei", 10))
     win = MainWindow()
     win.show()
     sys.exit(app.exec())

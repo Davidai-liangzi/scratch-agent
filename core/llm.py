@@ -24,6 +24,10 @@ _NO_VISION_NOTE = "\n\n（注意：当前模型无法看到图片内容，请依
 _VISION_ERR_HINTS = ("image", "vision", "multimodal", "图片", "图像", "多模态", "image_url")
 
 
+class GenerationStopped(Exception):
+    """用户主动停止生成（区别于真实的接口错误/失败）。"""
+
+
 def strip_markdown_fences(text: str) -> str:
     """移除模型可能误带的 ``` 代码块标记。"""
     text = text.strip()
@@ -151,7 +155,7 @@ def _looks_like_vision_error(text) -> bool:
     return any(h in t for h in _VISION_ERR_HINTS)
 
 
-def _try_model(url: str, headers: dict, messages: list, model: str):
+def _try_model(url: str, headers: dict, messages: list, model: str, stop_event=None, on_chunk=None):
     """流式请求单个模型。返回 (content, status)，status ∈ {'ok','unavailable','fail'}。
 
     unavailable 表示"这个模型不存在/已下线"，可回退到下一个候选；
@@ -226,8 +230,10 @@ def _try_model(url: str, headers: dict, messages: list, model: str):
             return None, "fail"
 
         # 200：流式读取
-        content = _read_stream(res, payload.get("stream", False))
-        res.close()
+        try:
+            content = _read_stream(res, payload.get("stream", False), stop_event, on_chunk)
+        finally:
+            res.close()
 
         if content is None:
             # 流里带出来了错误（如余额不足），直接终止
@@ -241,10 +247,11 @@ def _try_model(url: str, headers: dict, messages: list, model: str):
     return None, "fail"
 
 
-def _read_stream(res, is_stream: bool):
+def _read_stream(res, is_stream: bool, stop_event=None, on_chunk=None):
     """读取一次 200 响应，返回累积的文本内容；遇到终止性错误返回 None。
 
     is_stream 为真时按 SSE 逐块解析（并周期性打印进度），否则按整包 JSON 解析。
+    on_chunk 非空时，每个流式增量片段都回调一次（用于打字机式前端渲染）。
     """
     if not is_stream:
         # 降级后的普通模式：整包 JSON
@@ -266,6 +273,8 @@ def _read_stream(res, is_stream: bool):
 
     parts, received, last_report, truncated = [], 0, 0, False
     for line in res.iter_lines(decode_unicode=True):
+        if stop_event is not None and stop_event.is_set():
+            raise GenerationStopped()
         if not line or not line.startswith("data:"):
             continue
         data = line[5:].strip()
@@ -286,6 +295,8 @@ def _read_stream(res, is_stream: bool):
         if piece:
             parts.append(piece)
             received += len(piece)
+            if on_chunk is not None:
+                on_chunk(piece)
             if received - last_report >= 800:
                 last_report = received
                 print(f"⏳ 模型生成中… 已收到约 {received} 字符")
@@ -296,11 +307,12 @@ def _read_stream(res, is_stream: bool):
     return "".join(parts)
 
 
-def ask_llm(messages: list):
+def ask_llm(messages: list, stop_event=None, on_chunk=None):
     """请求大模型，返回生成的文本；失败时返回 None。
 
     按候选模型列表自动回退：主模型不存在/下线时切下一个候选（旧别名），
     余额/权限等问题则直接失败（回退无用）。用户不需要手动改模型名。
+    用户主动停止时抛 GenerationStopped。on_chunk 非空时逐片段回调（打字机）。
     """
     cfg = LLM_CONFIG
     url = cfg["base_url"].rstrip("/") + "/chat/completions"
@@ -311,7 +323,9 @@ def ask_llm(messages: list):
     models = cfg.get("models") or []
 
     for model in models:
-        content, status = _try_model(url, headers, messages, model)
+        if stop_event is not None and stop_event.is_set():
+            raise GenerationStopped()
+        content, status = _try_model(url, headers, messages, model, stop_event=stop_event, on_chunk=on_chunk)
         if status == "ok":
             return content
         if status == "unavailable":

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scratch Agent</title>
+<link rel="stylesheet" href="highlight.css">
+<script src="qwebchannel.js"></script>
+<script src="marked.min.js"></script>
+<script src="highlight.min.js"></script>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --text: #e6e6e6;
+    --bubble-user: #0d6efd;
+    --bubble-user-text: #ffffff;
+    --bubble-ai: #2a2a3d;
+    --bubble-ai-text: #e6e6e6;
+    --code-bg: #16161f;
+    --code-text: #e6e6e6;
+    --step-bg: rgba(255,255,255,0.04);
+    --step-detail: #9a9ab0;
+    --border: #3a3a4d;
+    --line-height-body: 1.6;
+    --line-height-heading: 1.25;
+    --line-height-code: 1.6;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6f8;
+    --text: #1a1a1a;
+    --bubble-user: #0d6efd;
+    --bubble-user-text: #ffffff;
+    --bubble-ai: #ffffff;
+    --bubble-ai-text: #1a1a1a;
+    --code-bg: #f0f0f0;
+    --code-text: #1a1a1a;
+    --step-bg: rgba(0,0,0,0.05);
+    --step-detail: #888;
+    --border: #ddd;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    line-height: var(--line-height-body);
+  }
+  #messages { max-width: 900px; margin: 0 auto; padding: 28px 20px 40px; }
+  .msg { display: flex; margin-bottom: 18px; }
+  .msg.user { flex-direction: column; align-items: flex-end; }
+  .msg.ai { justify-content: flex-start; }
+  .bubble {
+    max-width: 80%;
+    padding: 11px 15px;
+    border-radius: 14px;
+    line-height: 1.65;
+    word-break: break-word;
+    font-size: 14px;
+  }
+  .msg.user .bubble {
+    background: var(--bubble-user);
+    color: var(--bubble-user-text);
+    border-bottom-right-radius: 4px;
+  }
+  .msg.ai .bubble {
+    background: var(--bubble-ai);
+    color: var(--bubble-ai-text);
+    border-bottom-left-radius: 4px;
+  }
+  .bubble p { margin: 0 0 8px; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .bubble pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 12px 14px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 8px 0;
+  }
+  .bubble code {
+    font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+    font-size: 0.9em;
+  }
+  .bubble pre code { font-size: 0.88em; line-height: var(--line-height-code); }
+  .bubble ul, .bubble ol { margin: 6px 0; padding-left: 22px; }
+  .bubble h1, .bubble h2, .bubble h3 { margin: 12px 0 6px; line-height: var(--line-height-heading); }
+  .bubble blockquote { border-left: 3px solid #555; margin: 8px 0; padding-left: 10px; opacity: 0.85; }
+  .bubble table { border-collapse: collapse; margin: 8px 0; }
+  .bubble th, .bubble td { border: 1px solid #444; padding: 5px 9px; }
+
+  /* 步骤卡片（P1 步骤 4） */
+  #steps { max-width: 900px; margin: 0 auto; padding: 0 20px 12px; }
+  .step-card {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 13px;
+    margin-bottom: 6px;
+    border-radius: 8px;
+    background: var(--step-bg);
+    font-size: 13px;
+    border-left: 3px solid transparent;
+  }
+  .step-card.status-start { border-left-color: #f0ad4e; }
+  .step-card.status-done { border-left-color: #28a745; opacity: 0.75; }
+  .step-card.status-fail { border-left-color: #dc3545; }
+  .step-icon { font-size: 15px; }
+  .step-title { font-weight: 600; }
+  .step-detail { color: var(--step-detail); font-size: 12px; }
+  .step-status { margin-left: auto; font-size: 13px; }
+  .step-status.spin { display: inline-block; animation: step-spin 1s linear infinite; }
+  @keyframes step-spin { to { transform: rotate(360deg); } }
+
+  /* 主题切换按钮 + 代码复制按钮（P2 步骤 7） */
+  #theme-toggle {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 100;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--bubble-ai);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+  }
+  .copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bubble-ai);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 11px;
+    opacity: 0.7;
+  }
+  .copy-btn:hover { opacity: 1; }
+
+  /* 用户消息 meta（P0 步骤③）：时间 + 复制 + 修改 */
+  .msg-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 11px;
+    justify-content: flex-end;
+  }
+  .msg-time { color: var(--step-detail); }
+  .meta-btn {
+    background: transparent;
+    border: none;
+    color: var(--step-detail);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 4px;
+    border-radius: 4px;
+  }
+  .meta-btn:hover { color: var(--text); background: var(--step-bg); }
+
+  /* 用户消息原位编辑（P1 修复⑤） */
+  .inline-edit {
+    width: 100%;
+    min-height: 52px;
+    background: transparent;
+    color: inherit;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+  }
+  .inline-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+    justify-content: flex-end;
+  }
+</style>
+</head>
+<body>
+<button id="theme-toggle" title="切换主题">🌙</button>
+<div id="messages"></div>
+<script>
+  // —— 消息渲染：用户纯文本右对齐，AI markdown 左对齐 ——
+  function formatTime(ts) {
+    if (!ts) { return ''; }
+    var d = new Date(ts * 1000);
+    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function makeMetaBtn(label, onClick) {
+    var b = document.createElement('button');
+    b.className = 'meta-btn';
+    b.textContent = label;
+    b.onclick = onClick;
+    return b;
+  }
+
+  // 原位编辑用户气泡（P1 修复⑤）：点击「修改」把气泡内容替换为 textarea，确认后更新并回填输入框
+  function startInlineEdit(bubble, text) {
+    var ta = document.createElement('textarea');
+    ta.className = 'inline-edit';
+    ta.value = text;
+    var actions = document.createElement('div');
+    actions.className = 'inline-actions';
+    actions.appendChild(makeMetaBtn('确认', function () {
+      var newText = ta.value;
+      bubble.textContent = newText;
+      if (bridge && bridge.editMessage) { bridge.editMessage(newText); }
+    }));
+    actions.appendChild(makeMetaBtn('取消', function () {
+      bubble.textContent = text;
+    }));
+    bubble.innerHTML = '';
+    bubble.appendChild(ta);
+    bubble.appendChild(actions);
+    ta.focus();
+  }
+
+  function makeMsg(role, text, ts) {
+    var wrap = document.createElement('div');
+    wrap.className = 'msg ' + role;
+    var bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    if (role === 'user') {
+      bubble.textContent = text;
+    } else {
+      bubble.innerHTML = marked.parse(text || '');
+      bubble.querySelectorAll('pre code').forEach(function (block) {
+        hljs.highlightElement(block);
+      });
+      addCopyButtons(bubble);
+    }
+    wrap.appendChild(bubble);
+    if (role === 'user') {
+      var meta = document.createElement('div');
+      meta.className = 'msg-meta';
+      if (ts) {
+        var t = document.createElement('span');
+        t.className = 'msg-time';
+        t.textContent = formatTime(ts);
+        meta.appendChild(t);
+      }
+      meta.appendChild(makeMetaBtn('复制', function () {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text);
+        }
+      }));
+      meta.appendChild(makeMetaBtn('修改', function () {
+        startInlineEdit(bubble, text);
+      }));
+      wrap.appendChild(meta);
+    }
+    document.getElementById('messages').appendChild(wrap);
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+
+  // Python 侧通过 runJavaScript 调用这些全局函数推消息
+  window.appendUser = function (text, ts) { makeMsg('user', text, ts); };
+  window.appendAi = function (text) { makeMsg('ai', text); };
+
+  // —— 步骤卡片（P1 步骤 4）：按 kind 聚合，start/done/fail 更新同一张卡片 ——
+  var stepCards = {};
+  var STEP_ICONS = { outline: '🧭', request: '🤖', assets: '🎨', pack: '⚙️', verify: '🔍', done: '🎉' };
+
+  window.appendStep = function (kind, status, title, detail) {
+    var messages = document.getElementById('messages');
+    var steps = document.getElementById('steps');
+    if (!steps) {
+      steps = document.createElement('div');
+      steps.id = 'steps';
+      messages.appendChild(steps);
+    }
+    var card = stepCards[kind];
+    if (!card) {
+      var el = document.createElement('div');
+      el.className = 'step-card';
+      el.innerHTML = '<span class="step-icon"></span><span class="step-title"></span>' +
+                     '<span class="step-detail"></span><span class="step-status"></span>';
+      steps.appendChild(el);
+      card = {
+        el: el,
+        icon: el.querySelector('.step-icon'),
+        title: el.querySelector('.step-title'),
+        detail: el.querySelector('.step-detail'),
+        status: el.querySelector('.step-status'),
+      };
+      stepCards[kind] = card;
+    }
+    card.icon.textContent = STEP_ICONS[kind] || '•';
+    card.title.textContent = title;
+    card.detail.textContent = detail || '';
+    card.el.className = 'step-card status-' + (status || 'start');
+    if (status === 'done') {
+      card.status.textContent = '✅';
+      card.status.classList.remove('spin');
+    } else if (status === 'fail') {
+      card.status.textContent = '❌';
+      card.status.classList.remove('spin');
+    } else {
+      card.status.textContent = '⏳';
+      card.status.classList.add('spin');
+    }
+    window.scrollTo(0, document.body.scrollHeight);
+  };
+
+  // —— 流式打字机（P1 步骤 5）：AI 回复逐 token 追加，结束后转 markdown 渲染 ——
+  var streamBubble = null;
+
+  window.appendChunk = function (text) {
+    if (!streamBubble) {
+      var wrap = document.createElement('div');
+      wrap.className = 'msg ai';
+      var bubble = document.createElement('div');
+      bubble.className = 'bubble stream-bubble';
+      wrap.appendChild(bubble);
+      document.getElementById('messages').appendChild(wrap);
+      streamBubble = bubble;
+    }
+    streamBubble.textContent += text;
+    window.scrollTo(0, document.body.scrollHeight);
+  };
+
+  window.endStream = function () {
+    if (!streamBubble) { return; }
+    var raw = streamBubble.textContent;
+    streamBubble.innerHTML = marked.parse(raw);
+    streamBubble.querySelectorAll('pre code').forEach(function (block) {
+      hljs.highlightElement(block);
+    });
+    addCopyButtons(streamBubble);
+    streamBubble.classList.remove('stream-bubble');
+    streamBubble = null;
+    window.scrollTo(0, document.body.scrollHeight);
+  };
+
+  // —— 清空对话区 + 步骤卡片 + 流式状态（P2 步骤 6 会话切换用）——
+  window.clearMessages = function () {
+    document.getElementById('messages').innerHTML = '';
+    stepCards = {};
+    streamBubble = null;
+  };
+
+  // —— 代码复制按钮（P2 步骤 7）：给 pre 代码块加「复制」按钮 ——
+  function addCopyButtons(container) {
+    container.querySelectorAll('pre').forEach(function (pre) {
+      if (pre.querySelector('.copy-btn')) { return; }
+      var btn = document.createElement('button');
+      btn.className = 'copy-btn';
+      btn.textContent = '复制';
+      btn.onclick = function () {
+        var code = pre.querySelector('code')
+          ? pre.querySelector('code').textContent
+          : pre.textContent;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).then(function () {
+            btn.textContent = '已复制';
+            setTimeout(function () { btn.textContent = '复制'; }, 1500);
+          });
+        }
+      };
+      pre.style.position = 'relative';
+      pre.appendChild(btn);
+    });
+  }
+
+  // —— 主题切换（P2 步骤 7）：深色 ↔ 浅色 ——
+  function toggleTheme() {
+    var root = document.documentElement;
+    var next = (root.getAttribute('data-theme') === 'light') ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    document.getElementById('theme-toggle').textContent = next === 'dark' ? '🌙' : '☀️';
+  }
+  document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+  // —— QWebChannel 双向通信：JS 调 Python ——
+  var bridge = null;
+  if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+    new QWebChannel(qt.webChannelTransport, function (channel) {
+      bridge = channel.objects.bridge;
+      if (bridge && bridge.onReady) {
+        bridge.onReady();   // 通知 Python：前端已加载、桥已就绪
+      }
+    });
+  }
+</script>
+</body>
+</html>
