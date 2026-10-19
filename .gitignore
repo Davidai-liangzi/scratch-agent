@@ -21,9 +21,15 @@ my_ai_game/
 bug03_regression/
 bug03_regression2/
 bug03_final/
+bench_*/
 
 # ---- Node 依赖 ----
 node_modules/
+
+# ---- 本地/运行时数据（不入库）----
+sessions/
+*.zip
+worker/.wrangler/
 
 # ---- IDE ----
 .idea/

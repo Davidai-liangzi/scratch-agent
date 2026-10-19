@@ -33,6 +33,18 @@ const toArrayBuffer = (b) =>
   b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 当前造型名（舞台就是当前背景名）。采集它是为了判断「舞台有没有背景」「角色有没有造型」
+// —— 素材解析失败时造型列表是空的，画面就是白屏，而语法/运行时都不报错。
+function costumeName(t) {
+  try {
+    const list = t.getCostumes ? t.getCostumes() : [];
+    const c = list[t.currentCostume];
+    return c && c.name ? String(c.name) : '';
+  } catch (e) {
+    return '';
+  }
+}
+
 async function main() {
   const vm = muted(() => {
     const v = new VM();
@@ -79,13 +91,28 @@ async function main() {
     }
   }
 
+  // 起始快照：绿旗之前采集，用来判断「角色到底动没动」——
+  // 只看最终坐标是否为 0,0 是不可靠的（初始就在 0,0 的角色会被误判成「没动」，
+  // 初始不在 0,0 又没动的角色反而永远查不出来）。
+  // 只对原始 target 采集（克隆体是运行时才出现的，没有初值）。
+  const initialById = {};
+  for (const t of rt.targets) {
+    initialById[t.id] = {
+      x: Math.round((t.x || 0) * 10) / 10,
+      y: Math.round((t.y || 0) * 10) / 10,
+      visible: !!t.visible,
+      size: t.size,
+      costume: costumeName(t),
+    };
+  }
+
   vm.greenFlag();
   rt.start(); // 关键：启动 frame loop（设置 currentStepTime，让线程真正推进）
 
   await delay(seconds * 1000);
 
-  rt.stopAll();
-
+  // 快照在交互冒烟**之前**采集，保持「绿旗空跑 N 秒」的原有语义
+  // （否则点击引起的移动/显示变化会掩盖「绿旗脚本根本没生效」这类问题）。
   const targets = rt.targets.map((t) => ({
     name: t.getName?.() ?? t.id,
     isStage: !!t.isStage,
@@ -95,6 +122,8 @@ async function main() {
     direction: t.direction,
     visible: t.visible,
     size: t.size,
+    costume: costumeName(t),                 // 舞台这里就是「当前背景名」
+    initial: initialById[t.id] || null,      // 绿旗前的起始快照；克隆体为 null
     variables: Object.fromEntries(
       Object.values(t.variables || {})
         .filter((v) => v.type !== 'list' && v.type !== 'broadcast_msg')
@@ -106,6 +135,69 @@ async function main() {
         .map((v) => [v.name, v.value]),
     ),
   }));
+
+  // ---- 交互冒烟：轮流点击每个可见角色、按常用键，看项目有没有任何反应 ----
+  // 无头环境没有 renderer，mouse._pickTarget 永远返回舞台，所以不能靠 postIOData 的
+  // isDown 触发点击帽；这里直接调 runtime.startHats（与 scratch-vm 的
+  // _activateClickHats 走同一条路径）。按键走 postIOData('keyboard')，它会 emit
+  // KEY_PRESSED，由 scratch3_event 负责启动 when key 帽。
+  const fingerprint = () => JSON.stringify(rt.targets.map((t) => ({
+    x: Math.round((t.x || 0) * 10) / 10,
+    y: Math.round((t.y || 0) * 10) / 10,
+    direction: Math.round((t.direction || 0) * 10) / 10,
+    visible: !!t.visible,
+    size: t.size,
+    costume: costumeName(t),
+    vars: Object.values(t.variables || {})
+      .map((v) => [v.name, v.type, v.value])
+      .sort(),
+  })));
+
+  const beforeFp = fingerprint();
+  const eventMark = events.length;
+  const clicked = [];
+  const keys = [];
+
+  // 隐藏的角色在 Scratch 里本来就点不到，跳过（否则会把「点不到」误判成「没反应」）
+  const clickable = rt.targets.filter((t) => !t.isStage && t.isOriginal && t.visible);
+  for (const t of clickable) {
+    clicked.push(t.getName?.() ?? t.id);
+    try {
+      vm.postIOData('mouse', {
+        x: t.x + 240, y: 180 - t.y, canvasWidth: 480, canvasHeight: 360,
+      });
+    } catch (e) { /* 鼠标位置只影响 mouse x/y，失败不影响点击本身 */ }
+    rt.startHats('event_whenthisspriteclicked', null, t);
+    await delay(600);
+  }
+
+  const stageTarget = rt.getTargetForStage();
+  if (stageTarget) {
+    clicked.push('__stage__');
+    rt.startHats('event_whenstageclicked', null, stageTarget);
+    await delay(400);
+  }
+
+  for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ']) {
+    keys.push(key === ' ' ? 'space' : key);
+    vm.postIOData('keyboard', { key, isDown: true });
+    await delay(350);
+    vm.postIOData('keyboard', { key, isDown: false });
+    await delay(120);
+  }
+
+  const stateChanged = fingerprint() !== beforeFp;
+  const newSays = events.slice(eventMark).filter((e) => e.type === 'say' || e.type === 'think');
+  const interaction = {
+    clickable: clickable.length,       // 有多少个可见角色真的被点了
+    clicked,
+    keys,
+    stateChanged,
+    newSays: newSays.length,
+    changed: stateChanged || newSays.length > 0,
+  };
+
+  rt.stopAll();
 
   // 事件去重 + 限长，避免循环里的 say 刷屏
   const seen = new Set();
@@ -123,6 +215,7 @@ async function main() {
     threadsRunning: rt.threads.length,
     greenFlagScripts,
     events: dedup,
+    interaction,          // 交互冒烟结果：点了谁、按了哪些键、有没有任何反应
   }, null, 2));
 
   if (typeof vm.quit === 'function') vm.quit();

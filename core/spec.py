@@ -4,8 +4,17 @@ import shutil
 import xml.etree.ElementTree as ET
 
 
+# 模型自绘 SVG 里禁止出现的元素/属性（与提示词【造型 SVG 规范】一致）。
+# 只校验模型自绘的 SVG：官方素材在这一步还是 @official: 占位符，不会被这里碰到，
+# 所以不会因为官方素材内部用了 <image>/<defs>/渐变而误伤。
+_SVG_FORBIDDEN_TAGS = {
+    "style", "script", "image", "use", "defs", "filter", "mask",
+    "pattern", "foreignObject", "linearGradient", "radialGradient",
+}
+
+
 def is_valid_svg(text) -> bool:
-    """判断模型给的造型源码是不是一个能被解析的完整 SVG。"""
+    """判断模型给的造型源码是不是一个能被解析、且只用了允许元素的完整 SVG。"""
     if not isinstance(text, str):
         return False
     svg = text.strip()
@@ -14,14 +23,21 @@ def is_valid_svg(text) -> bool:
     if not svg.startswith("<svg") or not svg.endswith("</svg>"):
         return False
     try:
-        ET.fromstring(svg)
+        root = ET.fromstring(svg)
     except ET.ParseError:
         return False
+    for el in root.iter():
+        tag = str(el.tag).split("}")[-1]        # 去掉 {命名空间} 前缀
+        if tag in _SVG_FORBIDDEN_TAGS or "style" in el.attrib:
+            return False
     return True
 
 
 # 官方素材引用占位符：files 里某项的 content 写成 @official:<素材名>
-_OFFICIAL_RE = re.compile(r"^\s*@official:\s*(\S+)\s*$")
+# 素材名**可以含空格**（官方库里有 Blue Sky / Room 1 / City Bus 这类名字，提示词里也承诺合法），
+# 所以这里必须吃满整行 —— 早期用 \S+ 会把 "Blue Sky" 解析成空，占位符被原样写进工程，
+# 表现为「背景/造型空白、sb3 体积很小、检查器和运行时都不报错」。
+_OFFICIAL_RE = re.compile(r"^\s*@official:\s*(.+?)\s*$")
 
 
 def is_official_ref(content) -> bool:
@@ -102,7 +118,12 @@ def validate_files(files, strict_svg: bool = True):
                 problems.append(f'{item["path"]} 不是合法的 SVG 源码'
                                 f'（或未用 @official:<素材名> / @user:<序号> 引用现成图片）')
         if problems:
-            raise ValueError("、".join(problems) + "，请按【造型 SVG 规范】或【官方素材库】重新生成")
+            raise ValueError(
+                "、".join(problems)
+                + "。SVG 只能是单根 <svg>，只允许 svg/g/rect/circle/ellipse/line/polyline/polygon/path/text，"
+                  "禁止 style/script/image/use/defs/filter/渐变/外部引用；"
+                  "请按【造型 SVG 规范】或【官方素材库】重新生成"
+            )
 
     return normalized
 

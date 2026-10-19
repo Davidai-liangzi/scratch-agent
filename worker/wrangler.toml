@@ -1,0 +1,14 @@
+# Cloudflare Worker 部署配置（命令行 wrangler 用）
+# 用法见 v 1.1.2版本更新/信息反馈计划书.md §3.2「中转层」
+#
+# 注意：`FEISHU_HOOK`（真正的群机器人地址）**不写在这里**，
+# 它用 `wrangler secret put FEISHU_HOOK` 单独上传，不会进仓库。
+
+name = "sg-feedback"
+main = "feedback-proxy.js"
+compatibility_date = "2025-06-01"
+
+# KV 绑定：限流计数用。id 由 `wrangler kv namespace create RATE` 生成后填回这里。
+[[kv_namespaces]]
+binding = "RATE"
+id = "4fd187cdbb6e4857bc58ff86757d522e"

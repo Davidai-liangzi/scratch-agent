@@ -203,3 +203,78 @@ def inject_costume_declarations(work_dir: str, decls: dict) -> None:
         if add:
             with open(main, "w", encoding="utf-8") as f:
                 f.write("\n".join(add) + "\n" + text)
+
+
+# 角色目录里能当造型/背景用的图片扩展名
+_IMAGE_EXTS = (".svg", ".png")
+
+# 「带 file 的声明」才算已有造型（代码里的 costume "x"; 只是切换，不是声明）
+_DECL_RE = re.compile(r'\b(?:costume|backdrop)\s+"[^"]+"\s+file\b')
+
+
+def _image_size(path: str):
+    """读 SVG / PNG 的宽高（用于算旋转中心），读不到返回 None。"""
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(4096)
+    except OSError:
+        return None
+    low = path.lower()
+    if low.endswith(".png") and len(head) >= 24 and head[:8] == b"\x89PNG\r\n\x1a\n":
+        return int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
+    text = head.decode("utf-8", "replace")
+    w = re.search(r"<svg[^>]*\bwidth=[\"']([\d.]+)", text)
+    h = re.search(r"<svg[^>]*\bheight=[\"']([\d.]+)", text)
+    if w and h:
+        return int(float(w.group(1))), int(float(h.group(1)))
+    vb = re.search(r"viewBox=[\"']\s*[-.\d]+[\s,]+[-.\d]+[\s,]+([\d.]+)[\s,]+([\d.]+)", text)
+    if vb:
+        return int(float(vb.group(1))), int(float(vb.group(2)))
+    return None
+
+
+def inject_missing_sprite_costumes(work_dir: str) -> list:
+    """兜底：目录里有素材文件、但 main.fractch 里一条造型/背景声明都没有时，按文件名补上。
+
+    为什么需要（2026-10-19 基线真实案例）：模型把 SVG 画好、写进了 assets/，却忘了写
+    `costume` 声明。fractch 会补一个默认空造型，角色在舞台上**完全隐形、也点不到**，
+    而语法检查不报错 —— 以前只能靠回炉让模型补（一次约 1 万 token）。
+
+    只在「零声明」时触发，绝不覆盖模型已写的声明；返回补过声明的目录名列表。
+    """
+    fixed = []
+    try:
+        entries = sorted(os.listdir(work_dir))
+    except OSError:
+        return fixed
+    for target in entries:
+        target_dir = os.path.join(work_dir, target)
+        if not os.path.isdir(target_dir):
+            continue
+        main = os.path.join(target_dir, "main.fractch")
+        assets_dir = os.path.join(target_dir, "assets")
+        if not (os.path.exists(main) and os.path.isdir(assets_dir)):
+            continue
+        try:
+            with open(main, encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        if _DECL_RE.search(text):          # 已有声明：一个字都不改
+            continue
+        kind = "backdrop" if target == "Stage" else "costume"
+        add = []
+        for fname in sorted(os.listdir(assets_dir)):
+            if not fname.lower().endswith(_IMAGE_EXTS):
+                continue
+            full = os.path.join(assets_dir, fname)
+            size = _image_size(full)
+            cx, cy = (size[0] // 2, size[1] // 2) if size else (0, 0)
+            stem = os.path.splitext(fname)[0]
+            add.append(f'{kind} "{stem}" file "assets/{fname}" center {cx},{cy};')
+        if not add:
+            continue
+        with open(main, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(add) + "\n" + text)
+        fixed.append(target)
+    return fixed

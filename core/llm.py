@@ -155,12 +155,32 @@ def _looks_like_vision_error(text) -> bool:
     return any(h in t for h in _VISION_ERR_HINTS)
 
 
-def _try_model(url: str, headers: dict, messages: list, model: str, stop_event=None, on_chunk=None):
+def _estimate_tokens(chars: int) -> int:
+    """按字符数粗估 token（中英混排约 2.5 字符/token），仅在没有 usage 时兜底。"""
+    return max(1, round(int(chars or 0) / 2.5))
+
+
+def _prompt_chars(messages) -> int:
+    """统计 messages 的文本字符数（用于兜底估算 prompt token）。"""
+    total = 0
+    for m in messages or []:
+        c = m.get("content")
+        if isinstance(c, str):
+            total += len(c)
+        elif isinstance(c, list):
+            total += sum(len(p.get("text") or "") for p in c
+                         if isinstance(p, dict) and p.get("type") == "text")
+    return total
+
+
+def _try_model(url: str, headers: dict, messages: list, model: str, stop_event=None,
+               on_chunk=None, on_usage=None):
     """流式请求单个模型。返回 (content, status)，status ∈ {'ok','unavailable','fail'}。
 
     unavailable 表示"这个模型不存在/已下线"，可回退到下一个候选；
     fail 表示余额/权限/限流等问题，回退无用，应终止。
     用流式（SSE）读取，边收边报进度，首字更快出现、长输出不干等。
+    on_usage 非空时，接口返回 usage 时回调 (prompt_tokens, completion_tokens)。
     """
     payload = {
         "model": model,
@@ -169,6 +189,8 @@ def _try_model(url: str, headers: dict, messages: list, model: str, stop_event=N
         # 强制输出合法 JSON（接口要求提示词里出现小写 json 字样，SYSTEM_PROMPT 里已加）
         "response_format": {"type": "json_object"},
         "stream": True,
+        # 让流式响应在最后一块带 usage（用于 API 额度统计）
+        "stream_options": {"include_usage": True},
     }
 
     for i in range(1, REQUEST_RETRIES + 1):
@@ -186,15 +208,20 @@ def _try_model(url: str, headers: dict, messages: list, model: str, stop_event=N
                 print("⚠️ 当前模型可能不支持读图，已自动去掉图片重试（图片仍会作为素材被引用）。")
                 _strip_images(payload)
                 continue
-            # 个别服务不支持 response_format（或 stream），遇到 400 就摘掉重试
-            if "response_format" in payload or payload.get("stream"):
+            # 个别服务不支持 stream_options / response_format / stream，遇到 400 逐个摘掉重试
+            dropped = None
+            if payload.get("stream_options"):
+                payload.pop("stream_options", None)
+                dropped = "stream_options（用量统计）"
+            elif "response_format" in payload:
+                payload.pop("response_format", None)
+                dropped = "response_format"
+            elif payload.get("stream"):
+                payload.pop("stream", None)
+                dropped = "stream"
+            if dropped:
                 res.close()
-                if "response_format" in payload:
-                    print("⚠️ 当前模型不支持 response_format，已自动改为普通模式重试。")
-                    payload.pop("response_format", None)
-                else:
-                    print("⚠️ 当前模型不支持流式输出，已改为普通模式重试。")
-                    payload.pop("stream", None)
+                print(f"⚠️ 当前模型不支持 {dropped}，已自动改为兼容模式重试。")
                 continue
 
         if res.status_code == 404:
@@ -231,7 +258,7 @@ def _try_model(url: str, headers: dict, messages: list, model: str, stop_event=N
 
         # 200：流式读取
         try:
-            content = _read_stream(res, payload.get("stream", False), stop_event, on_chunk)
+            content = _read_stream(res, payload.get("stream", False), stop_event, on_chunk, on_usage)
         finally:
             res.close()
 
@@ -247,11 +274,12 @@ def _try_model(url: str, headers: dict, messages: list, model: str, stop_event=N
     return None, "fail"
 
 
-def _read_stream(res, is_stream: bool, stop_event=None, on_chunk=None):
+def _read_stream(res, is_stream: bool, stop_event=None, on_chunk=None, on_usage=None):
     """读取一次 200 响应，返回累积的文本内容；遇到终止性错误返回 None。
 
     is_stream 为真时按 SSE 逐块解析（并周期性打印进度），否则按整包 JSON 解析。
     on_chunk 非空时，每个流式增量片段都回调一次（用于打字机式前端渲染）。
+    on_usage 非空时，接口返回 usage 时回调 (prompt_tokens, completion_tokens)。
     """
     if not is_stream:
         # 降级后的普通模式：整包 JSON
@@ -269,9 +297,11 @@ def _read_stream(res, is_stream: bool, stop_event=None, on_chunk=None):
             return ""
         if choice.get("finish_reason") == "length":
             print("⚠️ 输出被 max_tokens 截断了，JSON 大概率不完整；建议把需求拆小一点再生成。")
+        _emit_usage(on_usage, res_data.get("usage"))
         return (choice.get("message", {}).get("content") or "")
 
     parts, received, last_report, truncated = [], 0, 0, False
+    usage = None
     for line in res.iter_lines(decode_unicode=True):
         if stop_event is not None and stop_event.is_set():
             raise GenerationStopped()
@@ -287,6 +317,9 @@ def _read_stream(res, is_stream: bool, stop_event=None, on_chunk=None):
         if isinstance(obj, dict) and obj.get("error"):
             print(f"❌ {_translate_llm_error(obj, 200)}")
             return None
+        # usage 出现在最后一块（该块 choices 为空）
+        if isinstance(obj, dict) and isinstance(obj.get("usage"), dict):
+            usage = obj["usage"]
         choices = obj.get("choices") or []
         if not choices:
             continue
@@ -304,15 +337,29 @@ def _read_stream(res, is_stream: bool, stop_event=None, on_chunk=None):
             truncated = True
     if truncated:
         print("⚠️ 输出被 max_tokens 截断了，JSON 大概率不完整；建议把需求拆小一点再生成。")
+    _emit_usage(on_usage, usage)
     return "".join(parts)
 
 
-def ask_llm(messages: list, stop_event=None, on_chunk=None):
+def _emit_usage(on_usage, usage) -> None:
+    """把接口返回的 usage 回调出去（拿不到就不回调，由上层决定是否估算）。"""
+    if on_usage is None or not isinstance(usage, dict):
+        return
+    try:
+        on_usage(int(usage.get("prompt_tokens") or 0),
+                 int(usage.get("completion_tokens") or 0))
+    except (TypeError, ValueError):
+        pass
+
+
+def ask_llm(messages: list, stop_event=None, on_chunk=None, on_usage=None):
     """请求大模型，返回生成的文本；失败时返回 None。
 
     按候选模型列表自动回退：主模型不存在/下线时切下一个候选（旧别名），
     余额/权限等问题则直接失败（回退无用）。用户不需要手动改模型名。
     用户主动停止时抛 GenerationStopped。on_chunk 非空时逐片段回调（打字机）。
+    on_usage 非空时回调 (prompt_tokens, completion_tokens)：优先用接口返回的 usage，
+    拿不到就用字符数粗估（估算值仅供额度面板参考）。
     """
     cfg = LLM_CONFIG
     url = cfg["base_url"].rstrip("/") + "/chat/completions"
@@ -325,8 +372,18 @@ def ask_llm(messages: list, stop_event=None, on_chunk=None):
     for model in models:
         if stop_event is not None and stop_event.is_set():
             raise GenerationStopped()
-        content, status = _try_model(url, headers, messages, model, stop_event=stop_event, on_chunk=on_chunk)
+        seen = []
+        content, status = _try_model(url, headers, messages, model, stop_event=stop_event,
+                                     on_chunk=on_chunk,
+                                     on_usage=(lambda p, c: seen.append((p, c))) if on_usage else None)
         if status == "ok":
+            if on_usage is not None:
+                if seen:
+                    on_usage(*seen[-1])
+                else:
+                    # 接口没给 usage → 本地粗估兜底
+                    on_usage(_estimate_tokens(_prompt_chars(messages)),
+                             _estimate_tokens(len(content or "")))
             return content
         if status == "unavailable":
             print(f"⚠️ 模型 {model} 不可用，自动切换到下一个候选…")

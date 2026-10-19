@@ -15,6 +15,10 @@
 7. **BUG-08（P0）** —— 第二次请求后程序闪退（根因：PySide6 6.12 线程 bug，降级 6.8.3 已解决）
 8. **BUG-09（P1）** —— 修改流程把角色造型声明删光 → 白屏（`fractch check` 查不出，已加语义兜底还原）
 9. **BUG-10（P1）** —— 替换面板说「所有背景」却只换一张（已支持「所有/全部/每个/每一」铺满）
+10. **BUG-11（P0）** —— 官方素材名含空格时静默不解析 → 舞台/角色空白（2026-10-16，用例集基线暴露）
+11. **BUG-12（P0）** —— 角色缺造型声明 → 选项按钮全白（2026-10-17，人工试玩暴露）
+12. **BUG-13（P1）** —— 收集物与玩家可达范围不重叠，星星够不到（2026-10-17，试玩）
+13. **BUG-14（P1）** —— 场景背景与讲解内容不匹配（2026-10-17，试玩）
 
 ## 二、汇总表
 
@@ -27,6 +31,10 @@
 | BUG-04 | 建议先修 BUG-01 | core/fractch.py（`run_project_validation`）+ vm-runner/（scratch-vm） | P1 | done |
 | BUG-06 | 依赖 BUG-04 | vm-runner/run.js、core/fractch.py（`run_project_validation`） | P1 | done |
 | REF-01 | 依赖上面全部 | script.py → core/（10 个模块）+ script.py 兼容层 | P2 | done |
+| BUG-11 | 无 | core/spec.py（`_OFFICIAL_RE`）+ core/lint.py（`_rule_undeclared_asset` / `_rule_unresolved_placeholder`） | P0 | done |
+| BUG-12 | 无 | core/lint.py（`_rule_missing_costume`）+ core/spec.py（`is_valid_svg` 元素黑名单） | P0 | done |
+| BUG-13 | BUG-12 | core/prompts.py（`OUTLINE_PROMPT`）+ core/project.py（大纲注入文案） | P1 | done |
+| BUG-14 | BUG-12 | core/prompts.py（`OUTLINE_PROMPT` + `_BACKDROP_TEMPLATES` 扩充 + 模板展开）+ core/lint.py（`_rule_station_backdrops`）+ core/project.py（把大纲与模板 SVG 传给编码阶段） | P1 | done |
 
 ## 三、详细计划
 
@@ -270,6 +278,79 @@
 - **验证命令**：`verify_enh2.py` 的 A1 / A2 / A3（均通过）。
 - **风险**：低。仅在有「所有/全部/每个/每一」字样时改变行为。
 - **状态**：done
+
+### BUG-11 — 官方素材名含空格时静默不解析 → 舞台/角色空白（P0）
+
+- **现象**：生成的工程里，舞台背景或角色造型是空白的；`.sb3` 体积异常小（20 KB 量级），但打包成功、`fractch check` 和运行时验证都**不报错**。
+- **复现**：让模型使用名字含空格的官方素材（如 `Blue Sky`、`Playing Field`、`Room 1`、`City Bus`）→ 检查工程目录，`Stage/assets/blue_sky.png` 的内容不是图片，而是 19 字节的文本 `@official:Blue Sky`。
+- **根因**：`core/spec.py` 的 `_OFFICIAL_RE` 用 `\S+` 匹配素材名，**不能含空格** → `parse_official_ref` 返回空 → 该条目被当成普通素材原样写盘：
+  - 官方素材不会下载，`costume/backdrop` 声明也不会注入；
+  - 因为扩展名是 `.png`，`validate_files` 只校验 `.svg`，连校验都绕过了；
+  - `fractch check` 不校验「声明的背景/造型是否存在」（实测：只写 `backdrop "X";` 而没有声明，check 返回空列表），于是坏工程一路打包成功；
+  - `detect_runtime_issues` 只看报错事件和「什么都没发生」，也看不见。
+  - 而提示词里明确写着「素材名可以含空格（如 City Bus、Room 1），`@official:City Bus` 是合法的」——**提示词承诺合法，代码静默不认**。
+- **影响**：用例集 6 条里有 2 条（balloon / race）实际是空白背景，却被基线记为「打包成功且无运行时问题」——**基线被高估**，也说明只靠现有两个检查器无法衡量交付质量。
+- **修复**：
+  1. `_OFFICIAL_RE` 改为 `^\s*@official:\s*(.+?)\s*$`，吃满整行（含空格）。
+  2. `core/lint.py` 新增两条素材完整性检查：
+     - `_rule_undeclared_asset`：切换的造型/背景名必须在工程里声明过（声明按**全工程**收集——背景声明在 Stage，任何角色都能切）；
+     - `_rule_unresolved_placeholder`：`assets/` 下不能残留 `@official:` / `@user:` 占位符文本。
+  3. 运行时辅助：`vm-runner/run.js` 增加起始快照与当前造型/背景名（用于判断「角色动没动」，并辅助诊断画面）。
+     ⚠️ 曾加过「造型名 / 背景名为空」的运行时判据，但缺声明时 fractch 会补一个**默认空造型**
+     （名字是 `costume1`），该判据**根本不可能触发**，已移除；这个坑改由 BUG-12 的静态检查覆盖。
+- **验收标准**：`parse_official_ref("@official:Blue Sky")` 返回 `"Blue Sky"`；含空格素材的工程能正常下载素材、sb3 体积明显变大；对已有 4 个交付工程跑 lint：quiz/story 0 条、race 1 条、balloon 2 条（后两者是修复前的历史产物，正好被新规则抓出）。
+- **验证命令**：`python -m compileall -q core` + `python test_fallback_vm.py`（均通过）+ 对 `bench_*` 逐个跑 `lint_project`。
+- **风险**：低。`_OFFICIAL_RE` 只放宽了名字里的空格，不改变占位符语法。
+- **状态**：done（2026-10-16）
+
+> **BUG-12** 的诊断与修复记录见《v 1.1.2版本更新/首次交付质量计划书.md》§6.1 的「P0 两条静态检查已实施」；
+> BUG-13 / BUG-14 的完整记录见下。
+
+### BUG-13 — 收集物与玩家可达范围不重叠，星星够不到（P1）
+
+- **现象**：试玩 story 时，飞船只能左右移动，星星却撒在 `y = -70 ~ 110`，绝大多数永远碰不到。
+- **根因**：设计阶段没有先定「玩家怎么动」，编码时两个范围各自随手写，必然对不上。
+- **修复**：`OUTLINE_PROMPT` 增加 `player` / `collectibles`（含 `reachable` 理由），并硬性要求
+  「玩家只沿一个轴动时，可收集物的另一轴范围必须与玩家所在高度重叠；写不出理由就改范围」；
+  编码阶段的大纲注入文案同步强调。
+- **验证**（两次完整 story，两次都成立）：
+  - 第一次：`Ship` 四方向移动，`Star` 出现在 `random(-180,180), random(-120,120)` → 可达。
+  - 第二次：`Ship` 只左右（每帧 `set_y -110`），`Star` 的 y 被限制在 `random(-140,-80)` 并横穿飞船所在高度
+    → **不变式在任意移动方式下都成立**。
+- **状态**：done（2026-10-17）
+
+### BUG-14 — 场景背景与讲解内容不匹配（P1）
+
+- **现象**：试玩 tour 时，背景和导游讲的内容关系不大（彩妆区用 `Party`、美食区用 `Refrigerator`），
+  且每条路线只用一张背景撑完三站讲解。
+- **根因**：素材库没有对应题材的背景，模型就近借用不相关的；而且**光靠提示词约束"逐站背景"会被编码阶段直接忽略**
+  （实测：大纲指定了三站背景，生成代码只切了一次）。
+- **修复（两步）**：
+  1. `OUTLINE_PROMPT` 增加 `stations`（逐站背景 + 该站内容），要求背景与内容相关、没有相关素材就留空自绘。
+  2. `core/lint.py` 新增 `_rule_station_backdrops`：`lint_project(work_dir, outline=...)` 接收大纲，
+     若 ≥2 站且背景都非空，就要求每个背景名在代码里真的出现过一次 `backdrop "X";`，否则报错回炉；
+     `core/project.py` 把 `outline_json` 传给两处 lint 调用。
+- **验证**：
+  - 对**上一轮产物**（只切过 Galaxy）用三站大纲跑 lint → 精确报出三站背景都未切换；
+  - 合成用例：三站都切 → 0 条；只切一站 → 报另外两站；单站大纲 → 不启用（0 条）；
+  - story 重跑（29,248 token、0 回炉）：`Stage` 逐关切 `Space` / `Nebula` / `Moon`，与讲解逐站对应；
+  - tour 重跑（42,667 token、1 次回炉）：`Stage` 按路线切 `Room 1` / `Party` / `Theater 2`（收尾回 `Hall`），
+    不再是「三站一张背景」。那次回炉是语法错（`setrotationstyle` 少了 `motion.` 前缀），与规则 7 无关。
+- **遗留问题的解决（2026-10-17，A 方案）**：素材库（85 张官方背景）里确实没有商店/餐厅/商场题材，
+  模型只能就近借 `Party` / `Refrigerator`。解法不是再加判定，而是**补数据**：
+  1. `_BACKDROP_TEMPLATES` 新增 `商店` / `餐厅` / `商场中庭` 三张 SVG（原有 6 张里已有 `室内` / `城市` 可复用）；
+  2. 大纲阶段的用户消息里列出「内置背景模板」清单，要求缺题材时**优先写模板名**（不加 `@official:`）；
+  3. 编码阶段由 `build_backdrop_templates_block(outline)` 把**大纲点到的**模板 SVG 附上（只展开命中的，约 1~2 KB），
+     模型原样写成 `assets/*.svg`；
+  4. 原有规则 7 与 `_rule_undeclared_asset` 负责保证「声明 + 切换」都真的落地。
+- **A 方案验证（tour 重跑）**：
+  - 大纲这次选出了 `商场中庭` / `商店` / `餐厅`（不再是 Party）；
+  - 首轮代码切了名字却没写声明 → `_rule_undeclared_asset` 报错；第 2 轮补了声明但没切换 → 规则 7 报错；
+    第 3 轮通过，最终 `Stage` 为：`商场中庭`(flag) → `商店`(beauty_1) → `餐厅`(food_1) → `Hall`(cinema_1)；
+  - 产物里 `shop.svg` 1.1 KB / `foodcourt.svg` 0.9 KB / `lobby.svg` 0.8 KB，就是模板 SVG；
+  - 代价：**2 次回炉、62,334 token**（此前 42,667）——修复轮会重发整个文件清单，这是 `AUTO_FIX` 路径的主要成本。
+    这也给「回炉裁文件」（原动作 5）提供了第一个真实数据点。
+- **状态**：done（2026-10-17）
 
 ## 四、script.py 拆分评估（REF-01）
 

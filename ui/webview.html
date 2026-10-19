@@ -90,6 +90,41 @@
   .bubble table { border-collapse: collapse; margin: 8px 0; }
   .bubble th, .bubble td { border: 1px solid #444; padding: 5px 9px; }
 
+  /* 流式打字光标：打字过程中在气泡末尾闪烁 */
+  .stream-bubble::after {
+    content: '▍';
+    margin-left: 1px;
+    color: var(--bubble-ai-text);
+    animation: cursor-blink 0.8s steps(1) infinite;
+  }
+  @keyframes cursor-blink { 50% { opacity: 0; } }
+
+  /* 加载动画：跳舞的省略号（等待 AI 回复时在底部闪烁） */
+  .typing-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: fit-content;
+    padding: 11px 15px;
+    margin-bottom: 18px;
+    border-radius: 14px;
+    border-bottom-left-radius: 4px;
+    background: var(--bubble-ai);
+  }
+  .typing-dots .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--bubble-ai-text);
+    animation: dot-bounce 1.2s infinite ease-in-out;
+  }
+  .typing-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dot-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+    30% { transform: translateY(-5px); opacity: 1; }
+  }
+
   /* 步骤卡片（P1 步骤 4） */
   #steps { max-width: 900px; margin: 0 auto; padding: 0 20px 12px; }
   .step-card {
@@ -144,6 +179,48 @@
   }
   .copy-btn:hover { opacity: 1; }
 
+  /* 「回到底部」悬浮按钮（需求①）：用户上滑查看历史时出现 */
+  #scroll-bottom-btn {
+    position: fixed;
+    right: 16px;
+    bottom: 24px;
+    z-index: 90;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--bubble-ai);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  #scroll-bottom-btn:hover { border-color: #6b7280; }
+
+  /* sb3 文件卡片（需求②）：AI 气泡内展示生成的项目，整卡可点击打开 */
+  .sb3-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--step-bg);
+    cursor: pointer;
+    font-size: 13px;
+    user-select: none;
+  }
+  .sb3-card:hover { border-color: #0d6efd; background: rgba(13,110,253,0.12); }
+  .sb3-card .sb3-icon { font-size: 18px; }
+  .sb3-card .sb3-name { font-weight: 600; word-break: break-all; }
+  .sb3-card .sb3-open { margin-left: auto; color: var(--step-detail); font-size: 12px; }
+  .sb3-card:hover .sb3-open { color: #0d6efd; }
+
   /* 用户消息 meta（P0 步骤③）：时间 + 复制 + 修改 */
   .msg-meta {
     display: flex;
@@ -164,6 +241,17 @@
     border-radius: 4px;
   }
   .meta-btn:hover { color: var(--text); background: var(--step-bg); }
+
+  /* 上下文使用率（agent 收尾时显示在其气泡右下角）：默认浅色，悬停变亮 */
+  .ctx-usage {
+    margin-top: 6px;
+    text-align: right;
+    font-size: 11px;
+    color: var(--bubble-ai-text);
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+  }
+  .ctx-usage:hover { opacity: 1; }
 
   /* 用户消息原位编辑（P1 修复⑤） */
   .inline-edit {
@@ -188,8 +276,36 @@
 </head>
 <body>
 <button id="theme-toggle" title="切换主题">🌙</button>
+<button id="scroll-bottom-btn" title="回到底部">↓</button>
 <div id="messages"></div>
 <script>
+  // —— 滚动跟随（需求①）：生成期间不抢夺用户视角 ——
+  // autoFollow=true 时新内容自动滚到底；用户上滑离开底部即自动关闭，滑回底部自动恢复。
+  var autoFollow = true;
+  var FOLLOW_GAP = 80;   // 距底部 80px 内视为「在底部」
+
+  function isNearBottom() {
+    return (window.innerHeight + window.scrollY) >=
+           (document.documentElement.scrollHeight - FOLLOW_GAP);
+  }
+
+  function syncScrollBtn() {
+    var btn = document.getElementById('scroll-bottom-btn');
+    if (!btn) { return; }
+    btn.style.display = (!autoFollow && !isNearBottom()) ? 'flex' : 'none';
+  }
+
+  function scrollBottom(force) {
+    if (force || autoFollow) {
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    }
+  }
+
+  window.addEventListener('scroll', function () {
+    autoFollow = isNearBottom();
+    syncScrollBtn();
+  }, { passive: true });
+
   // —— 消息渲染：用户纯文本右对齐，AI markdown 左对齐 ——
   function formatTime(ts) {
     if (!ts) { return ''; }
@@ -242,6 +358,7 @@
       addCopyButtons(bubble);
     }
     wrap.appendChild(bubble);
+    if (role === 'ai') { lastAiBubble = bubble; }
     if (role === 'user') {
       var meta = document.createElement('div');
       meta.className = 'msg-meta';
@@ -262,11 +379,15 @@
       wrap.appendChild(meta);
     }
     document.getElementById('messages').appendChild(wrap);
-    window.scrollTo(0, document.body.scrollHeight);
+    scrollBottom();
   }
 
   // Python 侧通过 runJavaScript 调用这些全局函数推消息
-  window.appendUser = function (text, ts) { makeMsg('user', text, ts); };
+  window.appendUser = function (text, ts) {
+    autoFollow = true;   // 用户发新消息 → 恢复自动跟随
+    makeMsg('user', text, ts);
+    syncScrollBtn();
+  };
   window.appendAi = function (text) { makeMsg('ai', text); };
 
   // —— 步骤卡片（P1 步骤 4）：按 kind 聚合，start/done/fail 更新同一张卡片 ——
@@ -311,27 +432,70 @@
       card.status.textContent = '⏳';
       card.status.classList.add('spin');
     }
-    window.scrollTo(0, document.body.scrollHeight);
+    // 等待 AI 生成文字时，在底部显示跳舞的省略号
+    if (status === 'start' && (kind === 'outline' || kind === 'request')) {
+      showTyping();
+    }
+    scrollBottom();
   };
+
+  // —— 加载动画：跳舞的省略号（等待 AI 回复时在底部闪烁）——
+  var typingIndicator = null;
+
+  function showTyping() {
+    if (typingIndicator) { return; }
+    var el = document.createElement('div');
+    el.className = 'typing-dots';
+    el.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+    document.getElementById('messages').appendChild(el);
+    typingIndicator = el;
+    scrollBottom();
+  }
+
+  function hideTyping() {
+    if (typingIndicator) {
+      typingIndicator.remove();
+      typingIndicator = null;
+    }
+  }
 
   // —— 流式打字机（P1 步骤 5）：AI 回复逐 token 追加，结束后转 markdown 渲染 ——
+  // 优化：网络 chunk 只进缓冲，由前端定时器按自适应速率逐字上屏，
+  // 与网络到达速率解耦，避免"整段一起蹦出来"。
   var streamBubble = null;
+  var pendingText = '';
+  var streamOpen = false;
+  var lastAiBubble = null;     // 最近一条 AI 文本气泡（用于挂「上下文使用率」）
+  var ctxUsageText = '';       // 待渲染的上下文使用率正文
+  var ctxUsageTip = '';
+  var typingTimer = null;
+  var TYPING_TICK = 24;        // 打字节拍（毫秒）
+  var TYPING_MIN = 1;          // 每拍最少上屏字符数
+  var TYPING_TARGET_MS = 800;  // 缓冲堆积时，尽量在该窗口内追平延迟
 
-  window.appendChunk = function (text) {
-    if (!streamBubble) {
-      var wrap = document.createElement('div');
-      wrap.className = 'msg ai';
-      var bubble = document.createElement('div');
-      bubble.className = 'bubble stream-bubble';
-      wrap.appendChild(bubble);
-      document.getElementById('messages').appendChild(wrap);
-      streamBubble = bubble;
+  function stopTyping() {
+    if (typingTimer) {
+      clearInterval(typingTimer);
+      typingTimer = null;
     }
-    streamBubble.textContent += text;
-    window.scrollTo(0, document.body.scrollHeight);
-  };
+  }
 
-  window.endStream = function () {
+  function typeStep() {
+    if (!streamBubble) { stopTyping(); return; }
+    if (pendingText.length > 0) {
+      var n = Math.max(TYPING_MIN, Math.ceil(pendingText.length / (TYPING_TARGET_MS / TYPING_TICK)));
+      streamBubble.textContent += pendingText.slice(0, n);
+      pendingText = pendingText.slice(n);
+      scrollBottom();
+    }
+    // 缓冲打完且流已结束 → 渲染 markdown
+    if (pendingText.length === 0 && !streamOpen) {
+      finalizeStream();
+    }
+  }
+
+  function finalizeStream() {
+    stopTyping();
     if (!streamBubble) { return; }
     var raw = streamBubble.textContent;
     streamBubble.innerHTML = marked.parse(raw);
@@ -341,14 +505,100 @@
     addCopyButtons(streamBubble);
     streamBubble.classList.remove('stream-bubble');
     streamBubble = null;
-    window.scrollTo(0, document.body.scrollHeight);
+    pendingText = '';
+    renderCtxUsage();   // 正文定稿后再挂「上下文使用率」，避免被 innerHTML 覆盖
+    scrollBottom();
+  }
+
+  window.appendChunk = function (text) {
+    hideTyping();   // 首字到达，隐藏加载省略号
+    if (!streamBubble) {
+      var wrap = document.createElement('div');
+      wrap.className = 'msg ai';
+      var bubble = document.createElement('div');
+      bubble.className = 'bubble stream-bubble';
+      wrap.appendChild(bubble);
+      document.getElementById('messages').appendChild(wrap);
+      streamBubble = bubble;
+      lastAiBubble = bubble;
+    }
+    pendingText += text;
+    streamOpen = true;
+    if (!typingTimer) { typingTimer = setInterval(typeStep, TYPING_TICK); }
+  };
+
+  window.endStream = function () {
+    streamOpen = false;
+    hideTyping();
+    // 没有正在打字（例如整段早已打完）→ 直接收尾；否则等 typeStep 打完再收尾
+    if (!typingTimer && streamBubble) {
+      finalizeStream();
+    }
+  };
+
+  // —— 上下文使用率（agent 收尾时挂到其气泡右下角）：text 为空则移除 ——
+  // 注意：打字动画未结束时先不挂（正文还在 textContent += ，且 finalizeStream 会重写
+  // innerHTML），等 finalizeStream 收尾后再渲染，避免污染正文或被覆盖。
+  function renderCtxUsage() {
+    if (!lastAiBubble) { return; }
+    if (typingTimer) { return; }
+    var el = lastAiBubble.querySelector('.ctx-usage');
+    if (!ctxUsageText) {
+      if (el) { el.remove(); }
+      return;
+    }
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'ctx-usage';
+      lastAiBubble.appendChild(el);
+    }
+    el.textContent = ctxUsageText;
+    el.title = ctxUsageTip || ctxUsageText;
+  }
+
+  window.setContextUsage = function (text, tip) {
+    ctxUsageText = text || '';
+    ctxUsageTip = tip || '';
+    renderCtxUsage();
+    scrollBottom();
+  };
+
+  // —— sb3 文件卡片（需求②）：生成的 .sb3 以卡片形式出现在 AI 气泡中，整卡可点击打开 ——
+  window.appendSb3Card = function (name, path) {
+    var wrap = document.createElement('div');
+    wrap.className = 'msg ai';
+    var bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    var card = document.createElement('div');
+    card.className = 'sb3-card';
+    card.title = '点击打开：' + path;
+    card.innerHTML = '<span class="sb3-icon">📦</span>' +
+                     '<span class="sb3-name"></span>' +
+                     '<span class="sb3-open">点击打开</span>';
+    card.querySelector('.sb3-name').textContent = name;
+    card.onclick = function () {
+      if (bridge && bridge.openSb3) { bridge.openSb3(path); }
+    };
+    bubble.appendChild(card);
+    wrap.appendChild(bubble);
+    document.getElementById('messages').appendChild(wrap);
+    scrollBottom();
   };
 
   // —— 清空对话区 + 步骤卡片 + 流式状态（P2 步骤 6 会话切换用）——
   window.clearMessages = function () {
     document.getElementById('messages').innerHTML = '';
     stepCards = {};
+    hideTyping();
+    stopTyping();
+    pendingText = '';
+    streamOpen = false;
     streamBubble = null;
+    lastAiBubble = null;
+    ctxUsageText = '';
+    ctxUsageTip = '';
+    autoFollow = true;   // 切换会话后恢复自动跟随
+    syncScrollBtn();
   };
 
   // —— 代码复制按钮（P2 步骤 7）：给 pre 代码块加「复制」按钮 ——
@@ -382,6 +632,13 @@
     document.getElementById('theme-toggle').textContent = next === 'dark' ? '🌙' : '☀️';
   }
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+  // —— 「回到底部」按钮（需求①）：点击平滑回底并恢复自动跟随 ——
+  document.getElementById('scroll-bottom-btn').addEventListener('click', function () {
+    autoFollow = true;
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+    syncScrollBtn();
+  });
 
   // —— QWebChannel 双向通信：JS 调 Python ——
   var bridge = null;

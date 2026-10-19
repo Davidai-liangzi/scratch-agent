@@ -23,6 +23,12 @@ _BACKDROP_TEMPLATES = [
     ("海洋", "<svg xmlns='http://www.w3.org/2000/svg' width='480' height='360' viewBox='0 0 480 360'><rect width='480' height='220' fill='#29B6F6'/><rect y='220' width='480' height='140' fill='#0277BD'/><circle cx='80' cy='60' r='30' fill='#FFF59D'/><path d='M0 235 Q60 220 120 235 T240 235 T360 235 T480 235' stroke='#B3E5FC' stroke-width='6' fill='none'/><path d='M0 280 Q60 265 120 280 T240 280 T360 280 T480 280' stroke='#81D4FA' stroke-width='6' fill='none'/></svg>"),
     ("城市", "<svg xmlns='http://www.w3.org/2000/svg' width='480' height='360' viewBox='0 0 480 360'><rect width='480' height='300' fill='#BBDEFB'/><rect y='300' width='480' height='60' fill='#90A4AE'/><rect x='30' y='160' width='70' height='140' fill='#78909C'/><rect x='120' y='100' width='90' height='200' fill='#90A4AE'/><rect x='230' y='180' width='60' height='120' fill='#78909C'/><rect x='310' y='120' width='80' height='180' fill='#90A4AE'/><rect x='410' y='200' width='60' height='100' fill='#78909C'/><rect x='45' y='180' width='18' height='18' fill='#FFF9C4'/><rect x='155' y='130' width='20' height='20' fill='#FFF9C4'/><rect x='345' y='150' width='20' height='20' fill='#FFF9C4'/></svg>"),
     ("森林", "<svg xmlns='http://www.w3.org/2000/svg' width='480' height='360' viewBox='0 0 480 360'><rect width='480' height='300' fill='#C8E6C9'/><rect y='300' width='480' height='60' fill='#4CAF50'/><rect x='40' y='180' width='20' height='120' fill='#795548'/><polygon points='10,200 50,90 90,200' fill='#388E3C'/><rect x='150' y='200' width='22' height='100' fill='#795548'/><polygon points='115,220 161,100 207,220' fill='#2E7D32'/><rect x='280' y='170' width='20' height='130' fill='#795548'/><polygon points='245,190 290,70 335,190' fill='#388E3C'/><rect x='380' y='210' width='18' height='90' fill='#795548'/><polygon points='350,230 389,120 428,230' fill='#2E7D32'/></svg>"),
+    # 下面是「素材库缺题材」时用的通用室内场景（BUG-14 遗留问题的数据层解法）：
+    # 官方背景只有 Room/Bedroom/Hall/Party/Refrigerator 这类，做商场、餐厅、店铺题材时
+    # 模型只能就近借用不相关的背景，所以补几张能覆盖常见商业场景的模板。
+    ("商店", "<svg xmlns='http://www.w3.org/2000/svg' width='480' height='360' viewBox='0 0 480 360'><rect width='480' height='360' fill='#FFF3E0'/><rect y='250' width='480' height='110' fill='#D7CCC8'/><rect x='30' y='60' width='180' height='14' fill='#8D6E63'/><rect x='30' y='120' width='180' height='14' fill='#8D6E63'/><rect x='30' y='180' width='180' height='14' fill='#8D6E63'/><rect x='45' y='40' width='16' height='20' fill='#EF5350'/><rect x='75' y='44' width='16' height='16' fill='#42A5F5'/><rect x='105' y='38' width='16' height='22' fill='#FFCA28'/><rect x='45' y='100' width='16' height='20' fill='#66BB6A'/><rect x='75' y='96' width='16' height='24' fill='#AB47BC'/><rect x='105' y='102' width='16' height='18' fill='#FF7043'/><rect x='45' y='160' width='16' height='20' fill='#26C6DA'/><rect x='75' y='164' width='16' height='16' fill='#EC407A'/><rect x='290' y='200' width='160' height='70' rx='8' fill='#A1887F'/><rect x='300' y='210' width='140' height='12' fill='#6D4C41'/><rect x='330' y='55' width='90' height='115' rx='6' fill='#B3E5FC'/><rect x='372' y='55' width='6' height='115' fill='#90A4AE'/></svg>"),
+    ("餐厅", "<svg xmlns='http://www.w3.org/2000/svg' width='480' height='360' viewBox='0 0 480 360'><rect width='480' height='360' fill='#FFF8E1'/><rect y='265' width='480' height='95' fill='#D7CCC8'/><rect x='300' y='70' width='150' height='90' rx='6' fill='#A5D6A7'/><rect x='300' y='70' width='150' height='16' fill='#66BB6A'/><rect x='310' y='96' width='30' height='26' fill='#FFF176'/><rect x='350' y='96' width='30' height='26' fill='#FF8A65'/><rect x='390' y='96' width='30' height='26' fill='#4FC3F7'/><ellipse cx='110' cy='250' rx='55' ry='16' fill='#FFFFFF'/><rect x='104' y='250' width='12' height='30' fill='#8D6E63'/><ellipse cx='230' cy='272' rx='40' ry='12' fill='#FFFFFF'/><circle cx='230' cy='258' r='12' fill='#FFB74D'/><rect x='60' y='40' width='8' height='40' fill='#616161'/><circle cx='64' cy='86' r='14' fill='#FFE082'/><rect x='180' y='40' width='8' height='40' fill='#616161'/><circle cx='184' cy='86' r='14' fill='#FFE082'/></svg>"),
+    ("商场中庭", "<svg xmlns='http://www.w3.org/2000/svg' width='480' height='360' viewBox='0 0 480 360'><rect width='480' height='360' fill='#ECEFF1'/><rect y='280' width='480' height='80' fill='#B0BEC5'/><rect x='20' y='60' width='120' height='220' fill='#CFD8DC'/><rect x='340' y='60' width='120' height='220' fill='#CFD8DC'/><rect x='20' y='100' width='120' height='30' fill='#90CAF9'/><rect x='20' y='170' width='120' height='30' fill='#90CAF9'/><rect x='340' y='100' width='120' height='30' fill='#90CAF9'/><rect x='340' y='170' width='120' height='30' fill='#90CAF9'/><rect x='200' y='250' width='80' height='10' fill='#78909C'/><path d='M200 250 L280 120' stroke='#78909C' stroke-width='8'/><circle cx='240' cy='70' r='24' fill='#FFF59D'/><rect x='232' y='70' width='16' height='40' fill='#B0BEC5'/></svg>"),
 ]
 
 
@@ -186,6 +192,9 @@ _SYSTEM_PROMPT_CORE = """
 ▲ 运动：
   move 10;  turn 15;  turn_left 15;  turn_right 15;  point 90;   # point=面向方向
   goto 0, 0;  set_x 0;  change_x 10;  set_y 0;  change_y 10;
+  # ▲ move / turn / change_x / change_y 后面**只能跟数字字面量**：
+  #   写 change_x -速度 这类变量或算式会直接报语法错（expected a number）；
+  #   需要按变量改位置时，用 if/else 分档写不同字面量。
   motion.glidesecstoxy(SECS: 1, X: 0, Y: 0);    # 滑行到 x,y，用 1 秒
   motion.ifonedgebounce();                       # 碰到边缘就反弹（无参也要写括号）
   motion.xposition();  motion.yposition();  motion.direction();
@@ -261,6 +270,8 @@ _SYSTEM_PROMPT_CORE = """
   引用别的角色时名字要和文件夹名完全一致（区分大小写）；
   costume / backdrop 里的名字要和 costume 声明的名字完全一致（区分大小写）；
   无参数的积木（如 motion.ifonedgebounce()）也必须写括号；
+  带参数的运动积木**必须带 motion. 前缀**（motion.setrotationstyle(...) / motion.pointtowards(...) /
+  motion.glidesecstoxy(...)）；裸写 setrotationstyle(...) 会被当成未知积木；
   不要用播放音频文件的积木（音乐积木 music.playNoteForBeats 等可以用）。
 
 【可靠性规则：下面是"能编译但玩起来会坏"的坑，必须遵守】
@@ -379,10 +390,15 @@ def build_user_prompt(user_prompt: str, user_images=None, vision: bool = False) 
 
 
 # 分步生成（BUG-03 步骤 4）：复杂需求先出「设计大纲」，再据此生成完整清单。
+# P1（BUG-13 / BUG-14）：大纲必须先把「玩家怎么动」「目标从哪来」「每站用哪张背景」定死，
+# 否则编码阶段很容易写出「星星在头顶、飞船只能左右」或「彩妆区配派对背景」这类设计错。
 OUTLINE_PROMPT = """你是 Scratch 项目设计助手。请**先不要写任何 fractch 代码**，只输出项目的「设计大纲」JSON：
 
 {
   "theme": "一句话说明本项目主题（必须与用户需求一致，不得替换成别的主题）",
+  "player": {"sprite": "玩家控制的角色名", "move": "只左右 / 只上下 / 四方向（写清用哪些键）"},
+  "collectibles": [{"sprite": "可收集物", "spawn": "从哪出现、怎么移动（写清大致坐标范围）", "reachable": "为什么玩家够得到"}],
+  "stations": [{"name": "站点 / 关卡名", "backdrop": "@official:背景名 或 内置模板名 或 空字符串", "content": "这一站讲什么或发生什么"}],
   "sprites": [{"name": "角色名", "asset": "@official:素材名 或 @user:N 或空字符串", "duty": "该角色职责（一句话）"}],
   "backdrops": ["@official:背景素材名", ...],
   "flow": "整体流程概述（2~3 句：怎么开始、怎么推进、怎么结束）"
@@ -392,16 +408,56 @@ OUTLINE_PROMPT = """你是 Scratch 项目设计助手。请**先不要写任何 
 1. **主题锁定**：先提炼用户需求的核心主题，theme 字段与整个大纲都必须忠实于该主题。
    严禁把主题替换成别的（例如需求是「购物中心游览」，绝不能做成音乐会、体育比赛等无关场景）。
 2. 角色 3~6 个，name 只用英文字母/数字/下划线，各不相同。
-3. **选材**：从文末【素材目录】里选与主题**题材匹配**的角色和背景，用 `@official:<素材名>` 引用；
+3. **空间必须自洽 —— 玩家要够得到目标**：
+   - `player.move` 写清玩家能沿哪个轴移动（例如「只左右，用左右方向键」）。
+   - `collectibles` 的每一项都要写明出现位置/范围，并给出 `reachable` 的理由：
+     **玩家只会左右移动时，可收集物的 y 范围必须与玩家所在高度重叠**，不能飘在玩家头顶够不到。
+   - 如果写不出「够得到」的理由，就改出现范围（或改玩家的移动方式），不要硬写。
+   - 没有可收集物的项目（答题、纯剧情）写空数组 `[]`。
+4. **逐站背景必须相关**：
+   - 游览 / 多关类项目必须逐站填 `stations`，每站一个 `backdrop`；
+     背景必须与该站内容**相关**（美妆区就该用美妆/商场类背景，**不能拿 Party、Refrigerator 这类凑数**）。
+   - 素材目录里确实没有相关背景时，**优先从【内置背景模板】里挑**（商店 / 餐厅 / 商场中庭 / 室内 / 城市 等），
+     把**模板名**直接写进 `backdrop`（不要加 `@official:` 前缀）；编码阶段会把它展开成完整背景。
+   - 模板里也没有合适的，才留空字符串，由编码阶段自绘一张简单背景。
+   - **禁止借用不相关的背景**（例如美食区不要用 Party、Refrigerator 凑数）。
+   - 单场景项目（没有多站/多关）写空数组 `[]`。
+5. **选材**：从文末【素材目录】里选与主题**题材匹配**的角色和背景，用 `@official:<素材名>` 引用；
    素材名必须真实存在于目录，禁止凭记忆编造（不要用目录里没有的名字）。
    同一项目尽量选同一题材、画面协调的素材；目录里确实没有时 asset 留空字符串交给程序兜底。
-4. flow 要能支撑一个完整可玩、能收尾的项目。
+6. flow 要能支撑一个完整可玩、能收尾的项目；**编码阶段会严格照 `player.move` 与 `stations` 实现**，
+   所以这里的设定必须是你真正想要的效果。
 只输出 JSON 本体，不要 Markdown、不要解释。"""
+
+
+def backdrop_template_names() -> str:
+    """内置背景模板的名字清单（给大纲阶段看，让它在缺素材时优先选这些）。"""
+    return "、".join(name for name, _ in _BACKDROP_TEMPLATES)
+
+
+def build_backdrop_templates_block(outline: str) -> str:
+    """把大纲里用到的内置背景模板展开成 SVG，供编码阶段原样复制。
+
+    只展开「大纲里点到的」模板，避免把 9 张 SVG 全塞进用户消息。
+    """
+    if not outline:
+        return ""
+    hits = [(name, svg) for name, svg in _BACKDROP_TEMPLATES if name in outline]
+    if not hits:
+        return ""
+    lines = ["【内置背景模板（把下面的 SVG 原样写成 assets/xxx.svg；"
+             "声明与切换都用模板名，不要加 @official: 前缀）】"]
+    for name, svg in hits:
+        lines.append(f"- {name}：\n  {svg}")
+    return "\n".join(lines)
 
 
 def build_outline_user_prompt(user_prompt: str) -> str:
     """构造「设计大纲」请求的用户消息。"""
-    return f"需求：{user_prompt}\n\n请输出设计大纲。"
+    return (f"需求：{user_prompt}\n\n"
+            f"【内置背景模板】{backdrop_template_names()}"
+            f"（素材库缺对应题材时优先用这些，把模板名直接写进 backdrop）\n\n"
+            f"请输出设计大纲。")
 
 
 REPAIR_PROMPT_FULL = """你上一次的输出有问题，报错如下：
@@ -414,6 +470,7 @@ files 数组里每项都必须是 {{"path": "...", "content": "..."}} 结构；
 如果报错是 "skipped unparsable statement" 或 "unknown block"，说明你用了语法表以外的积木名或写错了语法，请改用语法表中列出的写法；
 如果报错是某张背景/某套造型不存在，说明 costume / backdrop 里的名字和 costume 声明的 name 不一致（区分大小写）；
 如果提示某个 .svg 不是合法 SVG，请重新给出一段结构简单、标签闭合、带引号的 <svg> 源码。
+报错可能有多条，**请一次把所有列出的问题全部改完**（不要只修第一条、也不要只修一部分），否则会再触发一轮修复。
 不要输出任何解释文字，也不要带 Markdown 标记，只输出 JSON。"""
 
 
@@ -434,6 +491,8 @@ path 必须与上面给出的路径完全一致（含 Stage/、assets/ 等前缀
 如果报错是 "skipped unparsable statement" 或 "unknown block"，说明你用了语法表以外的积木名或写错了语法，请改用语法表中列出的写法；
 如果报错是某张背景/某套造型不存在，说明 costume / backdrop 里的名字和 costume 声明的 name 不一致（区分大小写）；
 如果提示某个 .svg 不是合法 SVG，请重新给出一段结构简单、标签闭合、带引号的 <svg> 源码。
+只做修复上面这些问题所需的**最小改动**，不要把没问题的部分顺手重写、重构或删掉（改动越少，越不容易改坏其他功能）。
+报错可能有多条，**请一次把所有列出的问题全部改完**（不要只修第一条、也不要只修一部分），否则会再触发一轮修复。
 不要输出任何解释文字，也不要带 Markdown 标记，只输出 JSON。"""
 
 
@@ -449,7 +508,8 @@ MODIFY_PROMPT = """下面是一个 fractch 项目当前的相关文件内容（�
 
 要求：
 1. 只列出需要修改的文件；不需要改的文件不要列（未列出的文件保持原样）。
-2. **只能改上面列出的文件**，不要凭空新增文件，也不要改写未列出的文件。
+2. **只能改上面列出的文件**，不要凭空新增文件，也不要改写未列出的文件；
+   并且只做实现本次修改所需的**最小改动**，不要把无关部分顺手重写、重构或删掉。
 3. 每个 content 是该文件修改后的**完整**内容，不是片段或 diff。
 4. path 必须与上面给出的文件路径完全一致（含 Stage/、assets/ 等前缀）。
 5. 严格使用 System Prompt 里列出的 fractch 语法，不要发明新名字。

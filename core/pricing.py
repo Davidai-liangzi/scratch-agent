@@ -64,8 +64,8 @@ def _usd_per_token_to_rmb_per_mtok(cost: float) -> float:
     return cost * 1_000_000 * EXCHANGE_RATE
 
 
-def get_model_price(model: str, prices: dict):
-    """返回 (输入价, 输出价)，单位「元/百万 token」；找不到返回 None。
+def _model_info(model: str, prices: dict):
+    """按「精确 → 模糊」查找模型在价格表里的条目；找不到返回 None。
 
     精确匹配失败时做模糊匹配（模型名是否出现在某个价格 key 里），
     以适配 LiteLLM 里厂商前缀/版本号命名的差异。
@@ -74,13 +74,18 @@ def get_model_price(model: str, prices: dict):
         return None
     info = prices.get(model)
     if not isinstance(info, dict):
-        # 模糊匹配：取第一个 key 里包含该模型名的
         target = model.lower()
         for k, v in prices.items():
             if target in str(k).lower():
                 info = v
                 break
-    if not isinstance(info, dict):
+    return info if isinstance(info, dict) else None
+
+
+def get_model_price(model: str, prices: dict):
+    """返回 (输入价, 输出价)，单位「元/百万 token」；找不到返回 None。"""
+    info = _model_info(model, prices)
+    if info is None:
         return None
     inp = info.get("input_cost_per_token")
     out = info.get("output_cost_per_token")
@@ -90,3 +95,18 @@ def get_model_price(model: str, prices: dict):
         _usd_per_token_to_rmb_per_mtok(float(inp or 0.0)),
         _usd_per_token_to_rmb_per_mtok(float(out or 0.0)),
     )
+
+
+def get_model_context(model: str, prices: dict):
+    """返回模型的上下文窗口（最大输入 token 数）；找不到返回 None。
+
+    LiteLLM 同表字段：优先 max_input_tokens，回退 max_tokens（旧字段）。
+    """
+    info = _model_info(model, prices)
+    if info is None:
+        return None
+    for key in ("max_input_tokens", "max_tokens"):
+        value = info.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+            return int(value)
+    return None

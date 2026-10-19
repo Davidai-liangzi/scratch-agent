@@ -4,7 +4,12 @@ import re
 import shutil
 
 from core import assets_lib
-from core.assets import inject_costume_declarations, resolve_official_assets, resolve_user_assets
+from core.assets import (
+    inject_costume_declarations,
+    inject_missing_sprite_costumes,
+    resolve_official_assets,
+    resolve_user_assets,
+)
 from core.config import AUTO_FIX_ROUNDS, LLM_CONFIG, MAX_ATTEMPTS, PROVIDERS, TIERS, supports_vision
 from core.fractch import (
     check_project,
@@ -16,12 +21,14 @@ from core.fractch import (
     summarize_runtime,
 )
 from core.llm import GenerationStopped, ask_llm, build_user_content, parse_spec
+from core.lint import lint_project
 from core.paths import OUTPUT_SB3, WORK_DIR, app_dir
 from core.prompts import (
     MODIFY_PROMPT,
     OUTLINE_PROMPT,
     REPAIR_PROMPT,
     REPAIR_PROMPT_FULL,
+    build_backdrop_templates_block,
     build_outline_user_prompt,
     build_system_prompt,
     build_user_images_block,
@@ -53,17 +60,50 @@ def _merge_patch(manifest: dict, incoming) -> tuple:
     return merged, changed
 
 
+# 报错里出现的文件路径（形如 Guide/main.fractch、Stage/assets/Room 1.png）
+_REPAIR_PATH_RE = re.compile(
+    r"[\w\-\u4e00-\u9fa5]+/[^\s:：,，;；()（）]+\.(?:fractch|svg|png|jpg|jpeg|wav|mp3)",
+    re.IGNORECASE,
+)
+
+
+def _repair_files(manifest: dict, error: str) -> dict:
+    """按报错提到的文件裁剪回炉输入，减少每轮修复的输入 token。
+
+    保守策略（宁可多发，也不让模型缺上下文改坏别处）：
+    - 报错里没提到任何文件（例如「大纲契约」这类项目级问题）→ 原样全发；
+    - 无论命中多少，都带上 Stage 的代码文件（全局变量、背景声明都在这里）；
+    - 裁完不足 2 个、或几乎等于全量 → 直接全发，避免退化成无意义的裁剪。
+    """
+    if not manifest:
+        return {}
+    paths = {m.group(0) for m in _REPAIR_PATH_RE.finditer(error or "")}
+    picked = {p: manifest[p] for p in manifest if p in paths}
+    stage = next((p for p in manifest
+                  if p.startswith("Stage/") and p.endswith(".fractch")), None)
+    if stage:
+        picked[stage] = manifest[stage]
+    if len(picked) < 2 or len(picked) >= len(manifest):
+        return dict(manifest)
+    return dict(sorted(picked.items()))
+
+
 def _repair_messages(user_prompt: str, manifest: dict, error: str,
                      user_images=None, vision: bool = False) -> list:
     """构造回炉请求（每轮重建，对话历史不累积）。
 
     - 已有可用清单：把当前文件**完整内容**给出，并只要求模型输出改动的文件（省输出）。
+      其中输入文件按报错**裁剪**（只发报错涉及的文件 + Stage），进一步省输入 token。
     - 还没有可用清单（首次输出不合法）：只能让它重新输出完整清单，此时把原始需求和
       用户图片一并带上（图片仅在模型支持读图时才真的发）。
     """
     if manifest:
+        files = _repair_files(manifest, error)
         files_text = "\n\n".join(f"=== {path} ===\n{content}"
-                                 for path, content in sorted(manifest.items()))
+                                 for path, content in sorted(files.items()))
+        if len(files) < len(manifest):
+            files_text = ("（为控制开销，下面只列出与报错相关的文件；"
+                          "没有列出的文件保持原样，请不要凭空重写。）\n\n" + files_text)
         user_content = REPAIR_PROMPT.format(project_files=files_text, error=error)
     else:
         user_text = (build_user_prompt(user_prompt, user_images, vision)
@@ -186,7 +226,7 @@ def _restore_vanished_costumes(work_dir: str, snap: dict) -> None:
 
 
 def modify_project(work_dir: str, feedback: str, output_sb3: str = None,
-                   user_images=None, stop_event=None, on_chunk=None) -> bool:
+                   user_images=None, stop_event=None, on_chunk=None, on_usage=None) -> bool:
     """读现有 fractch 工程，让 LLM 只改需要改的文件，写回后 check + pack。
 
     user_images 非空时，用户拖入的图片也参与本轮修改（走 `@user:N`，与生成同构）。
@@ -215,7 +255,7 @@ def modify_project(work_dir: str, feedback: str, output_sb3: str = None,
         {"role": "user", "content": build_user_content(user_text, user_images if vision else None)},
     ]
 
-    raw = ask_llm(messages, stop_event=stop_event, on_chunk=on_chunk)
+    raw = ask_llm(messages, stop_event=stop_event, on_chunk=on_chunk, on_usage=on_usage)
     if raw is None:
         return False
 
@@ -335,7 +375,7 @@ def _is_complex(user_prompt: str) -> bool:
     return any(k in p for k in _COMPLEX_HINTS)
 
 
-def _request_outline(user_prompt: str, stop_event=None, on_chunk=None) -> str:
+def _request_outline(user_prompt: str, stop_event=None, on_chunk=None, on_usage=None) -> str:
     """复杂需求先让模型输出「设计大纲」，返回大纲 JSON 文本；失败返回 ''（回退单轮）。
 
     GenerationStopped 不在此吞掉，向上传播（用户停止要立即中断，不能静默回退）。
@@ -344,7 +384,7 @@ def _request_outline(user_prompt: str, stop_event=None, on_chunk=None) -> str:
         raw = ask_llm([
             {"role": "system", "content": build_system_prompt()},
             {"role": "user", "content": OUTLINE_PROMPT + "\n\n" + build_outline_user_prompt(user_prompt)},
-        ], stop_event=stop_event, on_chunk=on_chunk)
+        ], stop_event=stop_event, on_chunk=on_chunk, on_usage=on_usage)
         if not raw:
             return ""
         spec = parse_spec(raw)
@@ -372,7 +412,8 @@ def _emit_step(step_cb, kind, status, title, detail=""):
 
 
 def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str = None,
-                          user_images=None, stop_event=None, step_cb=None, on_chunk=None):
+                          user_images=None, stop_event=None, step_cb=None, on_chunk=None,
+                          on_usage=None):
     if feedback_fn is None:
         feedback_fn = lambda: input("🔧 如果生成的游戏还有问题，请描述（例如：某个角色不动 / 造型不对 / 路线走不通），直接回车结束：")
 
@@ -397,12 +438,22 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
     # 分步生成（BUG-03 步骤 4）：复杂需求先出「设计大纲」，再据此生成完整清单。
     # 大纲这轮输出很短（角色 + 素材引用 + 流程），但能让后续编码结构更稳、少回炉。
     # 大纲失败则静默回退到单轮（不阻塞主流程）。
+    # outline_json 要留着传给 lint：用来做「逐站背景是否真的切换过」的确定性校验（BUG-14）。
+    outline_json = ""
     if _is_complex(user_prompt):
         _emit_step(step_cb, "outline", "start", "设计大纲")
         print("🧭 复杂需求，先生成设计大纲…")
-        outline = _request_outline(user_prompt, stop_event=stop_event, on_chunk=on_chunk)
+        outline = _request_outline(user_prompt, stop_event=stop_event, on_chunk=on_chunk,
+                                   on_usage=on_usage)
         if outline:
-            user_text += "\n\n【已确定的设计大纲（据此生成完整清单，不要偏离大纲的角色与素材）】\n" + outline
+            outline_json = outline
+            user_text += ("\n\n【已确定的设计大纲（据此生成完整清单，不要偏离大纲的角色、素材、"
+                          "玩家移动方式与逐站背景）】\n" + outline)
+            # 大纲若选了「内置背景模板」（商店/餐厅/商场中庭…），把对应 SVG 一并给它，
+            # 让编码阶段直接落成 assets 文件，而不是又去借用不相关的官方背景。
+            templates_block = build_backdrop_templates_block(outline)
+            if templates_block:
+                user_text += "\n\n" + templates_block
             _emit_step(step_cb, "outline", "done", "设计大纲", "主题与素材已确定")
             print("✅ 设计大纲已确定，据此生成完整项目清单。")
 
@@ -425,7 +476,8 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
             _emit_step(step_cb, "request", "start", "请求模型生成清单", f"第 {attempt}/{MAX_ATTEMPTS} 次尝试")
             print(f"\n🤖 [1/5] 正在请求 {provider_display} · {tier_label} 生成项目文件清单...（第 {attempt}/{MAX_ATTEMPTS} 次尝试）")
 
-            raw_spec = ask_llm(messages, stop_event=stop_event, on_chunk=on_chunk)
+            raw_spec = ask_llm(messages, stop_event=stop_event, on_chunk=on_chunk,
+                               on_usage=on_usage)
             if raw_spec is None:
                 return False
 
@@ -463,15 +515,22 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                 decls.setdefault(target, []).extend(items)
             write_files(work_dir, files)
             inject_costume_declarations(work_dir, decls)
+            # 兜底：素材文件写了但忘了写造型声明 → 角色在舞台上隐形（语法检查不报错）。
+            # 这里按 assets 目录里的真实文件机械补上，省掉一整轮「让模型补声明」的回炉。
+            auto_fixed = inject_missing_sprite_costumes(work_dir)
+            if auto_fixed:
+                print(f"🩹 这些目录有素材但没写造型/背景声明，已按文件名自动补上：{', '.join(auto_fixed)}")
             _emit_step(step_cb, "assets", "done", "素材已写入")
 
-            # 3.5 打包前先做 fractch check，命中语法错误就回炉，不必等 pack 报错
-            issues = check_project(work_dir)
+            # 3.5 打包前先做工程检查，命中问题就回炉，不必等 pack 报错
+            #     check_project（fractch check）管语法/结构；lint_project 管「能编译、能打包，
+            #     但玩起来会坏」的静态契约（帽子唯一、广播有发有收、游览类契约、非法自增写法）
+            issues = check_project(work_dir) + lint_project(work_dir, outline=outline_json)
             if issues:
                 report = "\n".join(f"- {p}" for p in issues[:20])
                 if len(issues) > 20:
                     report += f"\n- （还有 {len(issues) - 20} 条，先修上面这些）"
-                print(f"🔍 fractch check 发现 {len(issues)} 处问题：")
+                print(f"🔍 工程检查发现 {len(issues)} 处问题：")
                 print(report)
                 if attempt == MAX_ATTEMPTS:
                     print("⚠️ 已是最后一次尝试，带着这些问题直接交给 fractch 打包，尽量产出一个文件。")
@@ -479,7 +538,7 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                     print(f"🔁 正在把这些问题反馈给 AI 进行第 {attempt + 1} 次修复...")
                     messages = _repair_messages(
                         user_prompt, manifest,
-                        "fractch check 发现了以下问题（语法错误，会导致打包失败或游戏玩不起来）：\n" + report,
+                        "工程检查发现了以下问题（语法错误或结构契约问题，会导致打包失败或游戏玩不起来）：\n" + report,
                         user_images, vision)
                     continue
 
@@ -499,7 +558,7 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                     print("")
                     # 自动反思修复：发现问题 → 用修改意见驱动一轮修复 → 再验证，最多 AUTO_FIX_ROUNDS 轮
                     for _ in range(AUTO_FIX_ROUNDS):
-                        issues = detect_runtime_issues(result)
+                        issues = detect_runtime_issues(result, "\n".join(manifest.values()))
                         if not issues:
                             break
                         print(f"⚠️ 检测到 {len(issues)} 个运行问题，自动修复中…")
@@ -507,7 +566,7 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                                      "\n".join(f"- {i}" for i in issues)
                         if not modify_project(work_dir, fix_prompt, output_sb3,
                                               user_images=user_images, stop_event=stop_event,
-                                              on_chunk=on_chunk):
+                                              on_chunk=on_chunk, on_usage=on_usage):
                             print("⚠️ 自动修复失败，停止本轮修复。")
                             break
                         result = run_project_validation(output_sb3)
@@ -525,7 +584,7 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                         return True
                     if modify_project(work_dir, feedback, output_sb3,
                                       user_images=user_images, stop_event=stop_event,
-                                      on_chunk=on_chunk):
+                                      on_chunk=on_chunk, on_usage=on_usage):
                         continue
                     print("⚠️ 这次修改没成功，请换种说法或描述更具体的问题。")
 
@@ -534,6 +593,8 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                 print(f"\n❌ 已重试 {MAX_ATTEMPTS} 次仍未打包成功，请调整需求描述或手动检查工程目录。")
                 return False
 
-            error_text = "\n".join(check_project(work_dir)) or "fractch 打包失败"
+            error_text = ("\n".join(check_project(work_dir)
+                                    + lint_project(work_dir, outline=outline_json))
+                          or "fractch 打包失败")
             print(f"🔁 正在把报错信息反馈给 AI 进行第 {attempt + 1} 次修复...")
             messages = _repair_messages(user_prompt, manifest, error_text, user_images, vision)

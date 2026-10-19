@@ -138,6 +138,187 @@ def replace_asset_image(work_dir: str, fractch_file: str, asset_path: str, image
     return new_rel
 
 
+def _safe_target_name(name: str) -> str:
+    """把用户输入的角色/背景名清洗成安全的目录名（去路径穿越字符）。"""
+    cleaned = re.sub(r'[\\/:*?"<>|]', "_", str(name or "").strip())
+    cleaned = cleaned.replace("..", "_").strip(". ")
+    if not cleaned or cleaned.lower() == "stage":
+        return ""
+    return cleaned
+
+
+def delete_project_asset(work_dir: str, character: str) -> bool:
+    """删除工程内某个角色目录（Stage 一律禁止删除，删了会白屏）。
+
+    删除后需由调用方 `check_project` + `rebuild_project` 校验；失败时回滚。
+    """
+    name = _safe_target_name(character)
+    if not name:
+        print(f"❌ 不允许删除的角色名：{character!r}（Stage 不可删除）")
+        return False
+    target = os.path.join(work_dir, name)
+    if not os.path.isdir(target):
+        print(f"❌ 找不到角色目录：{name}")
+        return False
+    shutil.rmtree(target, ignore_errors=True)
+    print(f"🗑️ 已删除素材角色：{name}")
+    return True
+
+
+def add_project_asset(work_dir: str, image_path: str, name: str,
+                      is_backdrop: bool = False) -> str:
+    """用本地图片新增一个素材：角色（新目录）或背景（追加到 Stage）。
+
+    返回写入工程内的资源相对路径（失败返回空串）。新角色采用「单造型 + 无脚本」，
+    能被 Scratch 正常打开，后续可用文字描述让 AI 补逻辑。
+    """
+    ext = os.path.splitext(image_path)[1].lower()
+    if ext not in _IMAGE_EXTS:
+        print(f"❌ 不支持的图片格式：{ext}（支持 png/jpg/gif/bmp/webp/svg）")
+        return ""
+    name = _safe_target_name(name)
+    if not name:
+        print(f"❌ 非法的素材名：{name!r}")
+        return ""
+
+    if is_backdrop:
+        stage_dir = os.path.join(work_dir, "Stage")
+        rel = f"assets/{name}{ext}"
+        dest = os.path.join(stage_dir, rel.replace("/", os.sep))
+        try:
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            shutil.copyfile(image_path, dest)
+        except OSError as e:
+            print(f"❌ 复制图片失败：{e}")
+            return ""
+        main = os.path.join(stage_dir, "main.fractch")
+        with open(main, "a", encoding="utf-8") as fh:
+            fh.write(f'\nbackdrop "{name}" file "{rel}" center 240,180;\n')
+        print(f"➕ 已新增背景素材：{name}")
+        return rel
+
+    sprite_dir = os.path.join(work_dir, name)
+    if os.path.isdir(sprite_dir):
+        print(f"❌ 已存在同名角色：{name}")
+        return ""
+    rel = f"assets/{name}{ext}"
+    dest = os.path.join(sprite_dir, rel.replace("/", os.sep))
+    try:
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copyfile(image_path, dest)
+    except OSError as e:
+        print(f"❌ 复制图片失败：{e}")
+        return ""
+    with open(os.path.join(sprite_dir, "main.fractch"), "w", encoding="utf-8") as fh:
+        fh.write(f'costume "{name}" file "{rel}" center 0,0;\n')
+    print(f"➕ 已新增角色素材：{name}")
+    return rel
+
+
+def _iter_fractch(work_dir: str):
+    """遍历工程目录下所有 .fractch 文件，返回绝对路径。"""
+    for root, _dirs, names in os.walk(work_dir):
+        for name in names:
+            if name.endswith(".fractch"):
+                yield os.path.join(root, name)
+
+
+def _rename_sprite_refs(text: str, old: str, new: str) -> str:
+    """把代码里对某个精灵（角色）名的引用整体改名。
+
+    只按精确模式替换（sprite/clone/pointtowards/touchingobject/distanceto/sprites[...]），
+    避免误伤同名的造型名或背景名。
+    """
+    o = re.escape(old)
+    subs = (
+        (rf'(\bsprite\s+)"{o}"', rf'\g<1>"{new}"'),
+        (rf'(\bclone\s+)"{o}"', rf'\g<1>"{new}"'),
+        (rf'(pointtowards\(\s*TOWARDS\s*:\s*)"{o}"', rf'\g<1>"{new}"'),
+        (rf'(touchingobject\(\s*TOUCHINGOBJECTMENU\s*:\s*)"{o}"', rf'\g<1>"{new}"'),
+        (rf'(distanceto\(\s*DISTANCETOMENU\s*:\s*)"{o}"', rf'\g<1>"{new}"'),
+        (rf'(sprites\[)"{o}"(\])', rf'\g<1>"{new}"\g<2>'),
+    )
+    for pat, rep in subs:
+        text = re.sub(pat, rep, text)
+    return text
+
+
+def rename_project_asset(work_dir: str, old: str, new: str,
+                         is_character: bool, fractch_file: str = None) -> bool:
+    """重命名工程里的角色（精灵）名，或造型/背景别名，并同步所有引用。
+
+    - is_character=True ：把 `work_dir/<old>/` 改名为 `<new>/`，并全局同步精灵名引用
+      （sprite / clone / sprites[""] / pointtowards / touchingobject / distanceto）。
+    - is_character=False：`fractch_file` 指明该别名所属文件；背景名（Stage）全局同步
+      （声明 + 所有 `backdrop "旧";` 切换 + `when backdrop "旧"`），造型名仅在该角色文件内同步。
+
+    调用方需在之后 `check_project` + `rebuild_project` 校验，失败时整目录回滚。
+    """
+    old = str(old or "").strip()
+    new = _safe_target_name(new)
+    if not old or not new:
+        print(f"❌ 非法的重命名：{old!r} → {new!r}")
+        return False
+    if old == new:
+        return True
+
+    if is_character:
+        src = os.path.join(work_dir, old)
+        dst = os.path.join(work_dir, new)
+        if not os.path.isdir(src):
+            print(f"❌ 找不到角色目录：{old}")
+            return False
+        if os.path.exists(dst):
+            print(f"❌ 目标角色名已存在：{new}")
+            return False
+        os.rename(src, dst)
+        for path in _iter_fractch(work_dir):
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+            new_text = _rename_sprite_refs(text, old, new)
+            if new_text != text:
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(new_text)
+        print(f"✏️ 已重命名角色：{old} → {new}")
+        return True
+
+    # —— 造型 / 背景别名 ——
+    if not fractch_file:
+        print("❌ 缺少所属文件，无法重命名造型/背景")
+        return False
+    f_path = os.path.join(work_dir, fractch_file.replace("/", os.sep))
+    if not os.path.isfile(f_path):
+        print(f"❌ 找不到文件：{fractch_file}")
+        return False
+    o = re.escape(old)
+
+    if fractch_file.split("/")[0] == "Stage":
+        # 背景名全局替换：覆盖 Stage 声明、任意角色里的 backdrop 切换、when backdrop 触发器
+        for path in _iter_fractch(work_dir):
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+            new_text = re.sub(rf'(\bbackdrop\s+)"{o}"', rf'\g<1>"{new}"', text)
+            if path == f_path:
+                # 舞台也可能用 costume "旧名" file ... 声明背景
+                new_text = re.sub(rf'(\bcostume\s+)"{o}"(\s+file\b)',
+                                  rf'\g<1>"{new}"\g<2>', new_text)
+            if new_text != text:
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(new_text)
+        print(f"✏️ 已重命名背景：{old} → {new}")
+        return True
+
+    # 造型名：只在该角色自己的文件里替换（声明 + 切换）
+    with open(f_path, encoding="utf-8") as fh:
+        text = fh.read()
+    new_text = re.sub(rf'(\bcostume\s+)"{o}"', rf'\g<1>"{new}"', text)
+    if new_text != text:
+        with open(f_path, "w", encoding="utf-8") as fh:
+            fh.write(new_text)
+    print(f"✏️ 已重命名造型：{old} → {new}")
+    return True
+
+
 def _fix_stage_costume_centers(work_dir: str) -> None:
     """把 Stage 背景 costume 的 center 强制设为舞台中心 (240,180)。
 
@@ -250,7 +431,9 @@ def summarize_runtime(result: dict) -> str:
         pos = f"({t.get('x')}, {t.get('y')})" if not t.get("isStage") else ""
         visible = "" if t.get("visible", True) else " [隐藏]"
         name = "舞台" if t.get("isStage") else t.get("name")
-        lines.append(f"  {name}{pos}{visible} 变量: {vars_text or '（无）'}")
+        # 舞台顺带报当前背景名：素材解析失败时这里是空的，比看代码快
+        backdrop = f' [背景: {t.get("costume")}]' if t.get("isStage") and t.get("costume") else ""
+        lines.append(f"  {name}{pos}{visible}{backdrop} 变量: {vars_text or '（无）'}")
     if errors:
         lines.append("运行时错误：")
         lines.extend(f"  - {e.get('message')}" for e in errors)
@@ -259,25 +442,88 @@ def summarize_runtime(result: dict) -> str:
     return "\n".join(lines)
 
 
-def detect_runtime_issues(result: dict) -> list:
+# 运行结束时仍在场景里的克隆体上限：超过这个数几乎只能是「创建后忘了 delete_clone」。
+# 阈值刻意定得高（正常游戏同时存在几十个克隆体也有意义），避免把粒子效果误判成泄漏。
+_CLONE_LEAK_THRESHOLD = 50
+
+# 代码里出现这些「交互帽子」时，才要求「点了 / 按了必须有反应」——
+# 纯动画或纯剧情项目（只有 when flag）点了不动是正常的，不能报。
+_INTERACTIVE_HAT_RE = re.compile(r"\bwhen\s+(?:clicked|key\s+\S+)")
+
+
+def _target_moved(t: dict) -> bool:
+    """这个角色在运行期间是否动过。
+
+    新版 run.js 会带 `initial` 起始快照，直接比坐标；旧版没有快照时退化成
+    「最终坐标是否为 0,0」（不精确，但至少能覆盖「整段脚本根本没跑」的情况）。
+    """
+    init = t.get("initial")
+    if isinstance(init, dict) and ("x" in init or "y" in init):
+        return ((t.get("x") or 0) != (init.get("x") or 0)
+                or (t.get("y") or 0) != (init.get("y") or 0))
+    return (t.get("x") or 0) != 0 or (t.get("y") or 0) != 0
+
+
+def detect_runtime_issues(result: dict, code_text: str = "") -> list:
     """从运行时验证结果里识别「确定性高」的问题，返回问题描述列表。
 
     只报明确的问题，宁可少报不误报，避免把正常项目反复打回。
+
+    数据来源见 vm-runner/run.js：targets（坐标/可见性/当前造型名/起始快照/变量/是否克隆）、
+    greenFlagScripts、threadsRunning、events（say/think/broadcast/错误）、
+    interaction（交互冒烟：点了谁、按了哪些键、状态有没有变化）。
+    「变量全没变」这类**有意不查**：点击类游戏在无人点击时变量本来就该保持初值，查了必误报。
+
+    `code_text` 是工程里所有 .fractch 的正文（可选）。传了才会做「交互是否真的生效」的判定
+    —— 因为纯动画项目本来就不该有交互反应。
     """
     issues = []
     events = result.get("events") or []
+    targets = result.get("targets") or []
+    sprites = [t for t in targets if not t.get("isStage") and not t.get("isClone")]
+    clones = [t for t in targets if not t.get("isStage") and t.get("isClone")]
+
     # 1. 编译/运行时错误（最确定）
     for e in events:
         if e.get("type") in ("compile_error", "runtime_error"):
             issues.append(f"运行时错误：{e.get('message')}")
 
-    # 2. 绿旗脚本没生效：有绿旗脚本，但所有角色停在初始位置、没有任何台词/广播
+    said = any(e.get("type") in ("say", "think") for e in events)
+
+    # 注：原「素材缺失（造型/背景名为空）」判据已移除 —— 缺声明时 fractch 会补一个
+    # 默认空造型，名字是 `costume1`（实测），所以「名字为空」永远不成立、判据不可能触发。
+    # 这个坑改由 core/lint.py 的 `_rule_missing_costume` 做静态检查（查「有没有声明」）。
+
+    # 3. 绿旗脚本没生效：有绿旗脚本，但所有角色都没动、也没有任何台词/广播
     if result.get("greenFlagScripts", 0) > 0:
-        sprites = [t for t in result.get("targets", [])
-                   if not t.get("isStage") and not t.get("isClone")]
-        any_moved = any((t.get("x") or 0) != 0 or (t.get("y") or 0) != 0 for t in sprites)
+        any_moved = any(_target_moved(t) for t in sprites)
         any_event = any(e.get("type") in ("say", "think", "broadcast") for e in events)
         if not any_moved and not any_event:
-            issues.append("项目有绿旗脚本，但运行后所有角色都停在初始位置、没有任何台词或广播，绿旗脚本似乎没生效。")
+            issues.append("项目有绿旗脚本，但运行后所有角色都没动、也没有任何台词或广播，绿旗脚本似乎没生效。")
+
+    # 4. 画面全空：运行结束时所有角色都隐藏，且全程没有一句台词 → 用户看到的是空舞台
+    if (result.get("greenFlagScripts", 0) > 0 and sprites
+            and not any(t.get("visible", True) for t in sprites) and not said):
+        issues.append("运行结束时所有角色都是隐藏的，且全程没有任何台词 —— 画面是空的（白屏）。"
+                      "如果是有意隐藏，至少用一句 say 给出提示；否则检查 show / hide 的先后顺序。")
+
+    # 5. 克隆体泄漏：clone 之后没有 delete_clone，克隆体会越积越多
+    if len(clones) > _CLONE_LEAK_THRESHOLD:
+        issues.append(f"运行结束时场景里还残留 {len(clones)} 个克隆体，疑似克隆体泄漏"
+                      f"（clone 之后没有 delete_clone）。")
+
+    # 6. 交互无响应：代码里写了 when clicked / when key，但 run.js 轮流点了所有可见角色、
+    #    按了常用键之后，坐标/可见性/造型/变量/台词全都没有变化 —— 交互链路没接上
+    #    （典型：按钮被 HUD 挡住、广播发了没人接、条件永远不成立）。
+    inter = result.get("interaction")
+    if (isinstance(inter, dict) and code_text
+            and _INTERACTIVE_HAT_RE.search(code_text)
+            and (inter.get("clickable") or 0) > 0
+            and not inter.get("changed")):
+        issues.append(
+            "代码里有交互脚本（when clicked / when key），但模拟点击了 "
+            f"{inter.get('clickable')} 个可见角色并按下常用键后，"
+            "画面、变量和台词都没有任何变化 —— 交互没有生效。"
+        )
 
     return issues
