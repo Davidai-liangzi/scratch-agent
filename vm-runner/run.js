@@ -36,6 +36,18 @@ const toArrayBuffer = (b) =>
   b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ---- 断言模式的轨迹采集（其他模式也会填，但不影响输出） ----
+const FRAME_MS = 1000 / 30;      // 断言模式按 30fps 虚拟时钟步进
+let currentFrame = -1;           // 当前帧号，事件用它定位
+const broadcastLog = [];         // 每次 broadcast 发送（含无接收方）
+const events = [];               // 台词 / 广播 / 运行时错误（原有语义）
+const hatLog = [];               // 每个真正被启动的帽子线程
+const cloneCreated = [];
+const cloneRemoved = [];
+const cloneAlive = new Set();
+let clonePeak = 0;
+let sayCount = 0;                // 台词也算「可观察变化」，否则只说话的角色会被误判成死角色
+
 // 当前造型名（舞台就是当前背景名）。采集它是为了判断「舞台有没有背景」「角色有没有造型」
 // —— 素材解析失败时造型列表是空的，画面就是白屏，而语法/运行时都不报错。
 function costumeName(t) {
@@ -48,6 +60,225 @@ function costumeName(t) {
   }
 }
 
+// 断言模式用的交互帽子：出现这些帽子，才要求「点了 / 按了必须有反应」
+const INTERACTIVE_HATS = new Set([
+  'event_whenthisspriteclicked',
+  'event_whenstageclicked',
+  'event_whenkeypressed',
+]);
+
+// 广播输入可能是 [1,[11,name,id]]（原始 JSON）或 {block: 菜单块id}（加载后）。
+// 只取静态名字；用变量做广播名的情况这里取不到，交给运行时日志。
+function broadcastNameFromInput(input, blocks) {
+  if (!input) return '';
+  const ref = Array.isArray(input) ? input[1] : input.block;
+  if (typeof ref === 'string' && blocks[ref]) {
+    const f = blocks[ref].fields && blocks[ref].fields.BROADCAST_OPTION;
+    if (f && f.value) return String(f.value).toLowerCase();
+  }
+  if (Array.isArray(ref) && ref[0] === 11 && ref[1]) return String(ref[1]).toLowerCase();
+  return '';
+}
+
+// 静态扫描：广播发送/接收名单 + 交互帽子分布。
+// 运行时只能看到「执行到的」广播，静态扫描才能发现「发了没人收 / 收了没人发」。
+function scanProject(rt) {
+  const sent = new Set();
+  const received = new Set();
+  const hatsBySprite = {};
+  let interactive = 0;
+  for (const t of rt.targets) {
+    if (!t.isOriginal) continue;
+    const blocks = t.blocks && t.blocks._blocks ? t.blocks._blocks : {};
+    const sprite = t.isStage ? '__stage__' : (t.getName?.() ?? t.id);
+    for (const b of Object.values(blocks)) {
+      if (!b || !b.opcode) continue;
+      if (b.opcode === 'event_broadcast' || b.opcode === 'event_broadcastandwait') {
+        const name = broadcastNameFromInput(b.inputs && b.inputs.BROADCAST_INPUT, blocks);
+        if (name) sent.add(name);
+      } else if (b.opcode === 'event_whenbroadcastreceived') {
+        const f = b.fields && b.fields.BROADCAST_OPTION;
+        if (f && f.value) received.add(String(f.value).toLowerCase());
+      } else if (INTERACTIVE_HATS.has(b.opcode)) {
+        interactive += 1;
+        (hatsBySprite[sprite] = hatsBySprite[sprite] || []).push(b.opcode);
+      }
+    }
+  }
+  return {
+    sent: [...sent].sort(),
+    received: [...received].sort(),
+    hatsBySprite,
+    interactiveHats: interactive,
+  };
+}
+
+// ---- 断言模式：固定帧距步进 + 确定性点击脚本 ----
+// 与 playtest 的区别：不靠「每 500ms 轮询」，按 30fps 固定帧距推进，
+// 帧号即证据（每个症状都能定位到第几帧）。
+async function runAssertMode(vm, rt, seconds, forcedRoute, greenFlagScripts) {
+  const frames = Math.max(60, Math.min(3600, Math.round(seconds * 30)));
+  rt.currentStepTime = FRAME_MS;   // 必须设置：stepThreads 用 0.75*currentStepTime 作为每帧预算
+  // 用真实时钟按 30fps 步进：wait / timer 走的是 Date.now，虚拟时钟会让
+  // `forever` 循环的每帧工作预算永远耗不尽（timeElapsed 恒为 0）→ 死循环。
+  await delay(FRAME_MS);
+
+  {
+    const stage = rt.getTargetForStage();
+    const stateVars = () => {
+      const out = {};
+      for (const t of rt.targets) {
+        if (!t.isOriginal) continue;
+        const prefix = t.isStage ? '' : `${t.getName?.() ?? t.id}.`;
+        for (const v of Object.values(t.variables || {})) {
+          if (v.type === 'list' || v.type === 'broadcast_msg') continue;
+          out[prefix + v.name] = v.value;
+        }
+      }
+      return out;
+    };
+    const posesOf = () => rt.targets.filter((t) => t.isOriginal).map((t) => ({
+      n: t.isStage ? '__stage__' : (t.getName?.() ?? t.id),
+      x: Math.round((t.x || 0) * 10) / 10,
+      y: Math.round((t.y || 0) * 10) / 10,
+      visible: !!t.visible,
+      size: t.size,
+      costume: costumeName(t),
+    }));
+    const fingerprint = (vars) =>
+      JSON.stringify([posesOf(), vars || stateVars(), cloneAlive.size, sayCount]);
+
+    const actions = [];
+    const pending = [];
+    const series = {};
+    let frozenActive = 0;
+    let maxFrozenActive = 0;
+
+    const visibleOriginals = () =>
+      rt.targets.filter((t) => t.isOriginal && !t.isStage && t.visible);
+    const click = (t, f) => {
+      const rec = { kind: 'click', sprite: t.getName?.() ?? t.id, frame: f, changed: false };
+      actions.push(rec);
+      pending.push({ rec, before: fingerprint(), due: f + 12 });
+      try {
+        vm.postIOData('mouse', {
+          x: t.x + 240, y: 180 - t.y, canvasWidth: 480, canvasHeight: 360,
+        });
+      } catch (e) { /* 鼠标位置只影响 mouse x/y，不影响点击帽 */ }
+      rt.startHats('event_whenthisspriteclicked', null, t);
+    };
+
+    let prevVars = stateVars();
+    let lastFp = fingerprint(prevVars);
+
+    for (let f = 0; f < frames; f += 1) {
+      currentFrame = f;
+
+      if (f === 0 && forcedRoute > 0 && stage) {
+        const routeVar = stage.lookupVariableByNameAndType('route', '');
+        if (routeVar) routeVar.value = forcedRoute;
+      }
+      if (f === 60) {
+        for (const t of visibleOriginals()) click(t, f);
+        if (forcedRoute > 0) {
+          rt.startHats('event_whenbroadcastreceived',
+            { BROADCAST_OPTION: 'start_tour' }, null);
+        }
+      }
+      if (f === 75 && stage) {
+        rt.startHats('event_whenstageclicked', null, stage);
+      }
+      // 常用键：按下 2 帧后松开，覆盖 when key pressed
+      const KEY_START = 90;
+      const KEY_GAP = 7;
+      const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '];
+      const keyIndex = Math.floor((f - KEY_START) / KEY_GAP);
+      if (f >= KEY_START && keyIndex >= 0 && keyIndex < keys.length) {
+        const offset = (f - KEY_START) % KEY_GAP;
+        if (offset === 0) {
+          vm.postIOData('keyboard', { key: keys[keyIndex], isDown: true });
+        } else if (offset === 2) {
+          vm.postIOData('keyboard', { key: keys[keyIndex], isDown: false });
+        }
+      }
+      // 之后每 18 帧点一遍所有可见角色：让「点 3 次才达成」的项目也能推进
+      if (f >= 120 && (f - 120) % 18 === 0) {
+        for (const t of visibleOriginals()) click(t, f);
+      }
+
+      rt._step();
+      await delay(FRAME_MS);   // 让 wait / timer 按真实时间推进，同时固定 30fps 帧距
+
+      const vars = stateVars();
+      const fp = fingerprint(vars);
+      for (const [k, v] of Object.entries(vars)) {
+        if (prevVars[k] === v) continue;
+        const n = Number(v);
+        if (!Number.isNaN(n) && typeof v !== 'boolean') {
+          (series[k] = series[k] || []).push([f, n]);
+        }
+      }
+      prevVars = vars;
+
+      if (fp !== lastFp) {
+        frozenActive = 0;
+        lastFp = fp;
+      } else {
+        const running = rt.threads.filter((t) => !t.isKilled).length;
+        frozenActive = running > 0 ? frozenActive + 1 : 0;
+        if (frozenActive > maxFrozenActive) maxFrozenActive = frozenActive;
+      }
+
+      for (const p of pending) {
+        if (p.done || f < p.due) continue;
+        p.rec.changed = p.before !== fp;
+        p.done = true;
+      }
+    }
+
+    const targets = rt.targets.map((t) => ({
+      name: t.getName?.() ?? t.id,
+      isStage: !!t.isStage,
+      isClone: !t.isOriginal,
+      x: Math.round((t.x || 0) * 10) / 10,
+      y: Math.round((t.y || 0) * 10) / 10,
+      visible: !!t.visible,
+      size: t.size,
+      costume: costumeName(t),
+      variables: Object.fromEntries(
+        Object.values(t.variables || {})
+          .filter((v) => v.type !== 'list' && v.type !== 'broadcast_msg')
+          .map((v) => [v.name, v.value]),
+      ),
+    }));
+
+    rt.stopAll();
+
+    return {
+      mode: 'assert',
+      frames,
+      frameMs: FRAME_MS,
+      greenFlagScripts,
+      scan: scanProject(rt),
+      errors: events.filter((e) => String(e.type || '').includes('error')),
+      broadcasts: broadcastLog,
+      hats: hatLog,
+      clones: {
+        created: cloneCreated.length,
+        removed: cloneRemoved.length,
+        aliveAtEnd: cloneAlive.size,
+        peak: clonePeak,
+      },
+      series,
+      maxFrozenFrames: maxFrozenActive,
+      actions,
+      targets,
+      threadsRunning: rt.threads.length,
+      says: events.filter((e) => e.type === 'say' || e.type === 'think').length,
+    };
+  }
+}
+
 async function main() {
   const vm = muted(() => {
     const v = new VM();
@@ -57,20 +288,49 @@ async function main() {
   });
   const rt = vm.runtime;
 
-  const events = [];
   rt.on('SAY', (target, type, text) => {
-    if (text) events.push({ type, sprite: target.getName?.() ?? target.id, text: String(text) });
+    if (text) {
+      sayCount += 1;
+      events.push({ type, sprite: target.getName?.() ?? target.id, text: String(text) });
+    }
   });
   rt.on('RUNTIME_ERROR', (msg) => events.push({ type: 'runtime_error', message: String(msg) }));
   rt.on('COMPILE_ERROR', (target, err) => events.push({ type: 'compile_error', message: String(err) }));
   // runtime 没有 broadcast 事件，hook startHats 捕获广播发送
   const startHats = rt.startHats.bind(rt);
   rt.startHats = (opcode, matchFields, target) => {
-    if (opcode === 'event_whenbroadcastreceived' && matchFields && matchFields.BROADCAST_OPTION) {
-      events.push({ type: 'broadcast', name: matchFields.BROADCAST_OPTION });
+    const spawned = startHats(opcode, matchFields, target);
+    const msg = matchFields && matchFields.BROADCAST_OPTION;
+    // broadcast 的 startHats 调用发生在「发送」时，无论有没有接收帽都会进来，
+    // 所以这里既能量到发送次数，也能靠 spawned 是否为空区分「有人接 / 没人接」。
+    if (opcode === 'event_whenbroadcastreceived' && msg) {
+      events.push({ type: 'broadcast', name: msg });
+      broadcastLog.push({ name: String(msg).toLowerCase(), frame: currentFrame });
     }
-    return startHats(opcode, matchFields, target);
+    if (Array.isArray(spawned) && spawned.length > 0) {
+      hatLog.push({
+        opcode,
+        name: msg ? String(msg).toLowerCase() : '',
+        frame: currentFrame,
+        sprite: target && target.getName ? target.getName() : '',
+        threads: spawned.length,
+      });
+    }
+    return spawned;
   };
+
+  // 克隆体生命周期：只统计运行时新建的克隆（isOriginal === false）
+  rt.on('targetWasCreated', (t) => {
+    if (!t || t.isOriginal !== false) return;
+    cloneAlive.add(t.id);
+    if (cloneAlive.size > clonePeak) clonePeak = cloneAlive.size;
+    cloneCreated.push({ sprite: t.getName ? t.getName() : '', frame: currentFrame });
+  });
+  rt.on('targetWasRemoved', (t) => {
+    if (!t || !cloneAlive.has(t.id)) return;
+    cloneAlive.delete(t.id);
+    cloneRemoved.push({ sprite: t.getName ? t.getName() : '', frame: currentFrame });
+  });
 
   // 无头 Node 里没有 Web Audio：项目用到音乐扩展时，其构造函数会解码内置音效，
   // _decodeSound 因 runtime.audioEngine 为空返回 rejected promise，而 _loadAllSounds
@@ -110,6 +370,15 @@ async function main() {
   }
 
   vm.greenFlag();
+
+  // 断言模式：不启动真实 frame loop，改为虚拟时钟逐帧步进（见 runAssertMode）
+  if (mode === 'assert') {
+    const result = await runAssertMode(vm, rt, seconds, forcedRoute, greenFlagScripts);
+    console.log(JSON.stringify(result));
+    if (typeof vm.quit === 'function') vm.quit();
+    return;
+  }
+
   rt.start(); // 关键：启动 frame loop（设置 currentStepTime，让线程真正推进）
 
   // 路线验收模式：提前把 route 设为指定值，选项的 route == 0 判定就不会误选；
