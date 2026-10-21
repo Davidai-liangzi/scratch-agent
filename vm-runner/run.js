@@ -1,12 +1,15 @@
 // 无头运行 Scratch 项目：加载 .sb3 → 绿旗 → 跑 N 秒 → 输出结构化状态快照 JSON
-// 用法：node run.js <sb3路径> [秒数]
-// 输出：{ targets, threadsRunning, events } 写到 stdout，供调用方断言。
+// 用法：node run.js <sb3路径> [秒数] [playtest]
+//   playtest：交互冒烟之后再跑 N 秒并采样，用于「能不能玩到结束」的断言
+// 输出：{ targets, threadsRunning, events, timeline } 写到 stdout，供调用方断言。
 const fs = require('fs');
 const VM = require('scratch-vm');
 const { ScratchStorage } = require('scratch-storage');
 
 const sb3Path = process.argv[2];
 const seconds = Number(process.argv[3] || 5);
+const mode = process.argv[4] || '';
+const forcedRoute = Number(process.argv[5] || 0);
 
 // scratch-vm 会往 stdout/stderr 打 "no renderer / no audio" 之类日志，吞掉以免污染输出
 function muted(fn) {
@@ -109,7 +112,35 @@ async function main() {
   vm.greenFlag();
   rt.start(); // 关键：启动 frame loop（设置 currentStepTime，让线程真正推进）
 
+  // 路线验收模式：提前把 route 设为指定值，选项的 route == 0 判定就不会误选；
+  // 交互阶段结束后再由下面主动广播 start_tour，逐条验证三条路线。
+  if (mode === 'routetest' && forcedRoute > 0) {
+    await delay(800);
+    const st = rt.getTargetForStage();
+    const routeVar = st && st.lookupVariableByNameAndType('route', '');
+    if (routeVar) routeVar.value = forcedRoute;
+  }
+
+  // 计时采样：供调用方判断「分数/时间/状态有没有真的变化」（试玩断言用）
+  const timeline = [];
+  const stageVars = () => {
+    const st = rt.getTargetForStage();
+    if (!st) return {};
+    return Object.fromEntries(
+      Object.values(st.variables || {})
+        .filter((v) => v.type !== 'list' && v.type !== 'broadcast_msg')
+        .map((v) => [v.name, v.value]),
+    );
+  };
+  const sample = () => {
+    if (timeline.length < 120) timeline.push({ t: timeline.length, vars: stageVars() });
+  };
+  const sampler = setInterval(sample, 1000);
+  sample();
+
   await delay(seconds * 1000);
+  clearInterval(sampler);
+  sample();
 
   // 快照在交互冒烟**之前**采集，保持「绿旗空跑 N 秒」的原有语义
   // （否则点击引起的移动/显示变化会掩盖「绿旗脚本根本没生效」这类问题）。
@@ -186,6 +217,40 @@ async function main() {
     await delay(120);
   }
 
+  // 鼠标按住 0.4 秒：有些项目的开场用 `until sensing.mousedown()` 等玩家点击
+  try {
+    vm.postIOData('mouse', {
+      isDown: true, x: 240, y: 180, canvasWidth: 480, canvasHeight: 360,
+    });
+    await delay(400);
+    vm.postIOData('mouse', {
+      isDown: false, x: 240, y: 180, canvasWidth: 480, canvasHeight: 360,
+    });
+    await delay(400);
+  } catch (e) { /* 鼠标事件失败不影响其他断言 */ }
+
+  // 二次点击：开场较长的项目，选项/目标可能在这时才显示出来。
+  // 连点 3 次，覆盖「点击 3 次才算完成」的站点模板。
+  const lateClickable = rt.targets.filter((t) => !t.isStage && t.isOriginal && t.visible);
+  for (const t of lateClickable) {
+    const name = t.getName?.() ?? t.id;
+    if (!clicked.includes(name)) clicked.push(name);
+    for (let i = 0; i < 3; i += 1) {
+      try {
+        vm.postIOData('mouse', {
+          x: t.x + 240, y: 180 - t.y, canvasWidth: 480, canvasHeight: 360,
+        });
+      } catch (e) { /* 同上 */ }
+      rt.startHats('event_whenthisspriteclicked', null, t);
+      await delay(150);
+    }
+  }
+
+  if (mode === 'routetest' && forcedRoute > 0) {
+    rt.startHats('event_whenbroadcastreceived', { BROADCAST_OPTION: 'start_tour' }, null);
+    await delay(600);
+  }
+
   const stateChanged = fingerprint() !== beforeFp;
   const newSays = events.slice(eventMark).filter((e) => e.type === 'say' || e.type === 'think');
   const interaction = {
@@ -196,6 +261,30 @@ async function main() {
     newSays: newSays.length,
     changed: stateChanged || newSays.length > 0,
   };
+
+  // 试玩模式：交互之后再跑一段，并持续点击新出现的角色（路线站/选项），观察能否推进到结算
+  if (mode === 'playtest' || mode === 'routetest') {
+    const sampler2 = setInterval(sample, 1000);
+    const endAt = Date.now() + seconds * 1000;
+    while (Date.now() < endAt) {
+      await delay(500);
+      // 持续按空格：覆盖「按键 3 次」的站点模板
+      vm.postIOData('keyboard', { key: ' ', isDown: true });
+      await delay(60);
+      vm.postIOData('keyboard', { key: ' ', isDown: false });
+      const live = rt.targets.filter((t) => !t.isStage && t.isOriginal && t.visible);
+      for (const t of live) {
+        try {
+          vm.postIOData('mouse', {
+            x: t.x + 240, y: 180 - t.y, canvasWidth: 480, canvasHeight: 360,
+          });
+        } catch (e) { /* 点击失败不影响采样 */ }
+        rt.startHats('event_whenthisspriteclicked', null, t);
+      }
+    }
+    clearInterval(sampler2);
+    sample();
+  }
 
   rt.stopAll();
 
@@ -216,6 +305,7 @@ async function main() {
     greenFlagScripts,
     events: dedup,
     interaction,          // 交互冒烟结果：点了谁、按了哪些键、有没有任何反应
+    timeline,             // 舞台变量随时间的变化（试玩断言用）
   }, null, 2));
 
   if (typeof vm.quit === 'function') vm.quit();

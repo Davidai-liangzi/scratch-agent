@@ -1,0 +1,248 @@
+{
+  "pack": "seed-characters",
+  "style": "default",
+  "license": "generated",
+  "source": "core/characters.py",
+  "items": [
+    {
+      "name": "Seed Hero 01",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_01.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 1
+    },
+    {
+      "name": "Seed Hero 02",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_02.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 2
+    },
+    {
+      "name": "Seed Hero 03",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_03.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 3
+    },
+    {
+      "name": "Seed Hero 04",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_04.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 4
+    },
+    {
+      "name": "Seed Hero 05",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_05.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 5
+    },
+    {
+      "name": "Seed Hero 06",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_06.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 6
+    },
+    {
+      "name": "Seed Hero 07",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_07.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 7
+    },
+    {
+      "name": "Seed Hero 08",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_08.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 8
+    },
+    {
+      "name": "Seed Hero 09",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_09.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 9
+    },
+    {
+      "name": "Seed Hero 10",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_10.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 10
+    },
+    {
+      "name": "Seed Hero 11",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_11.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 11
+    },
+    {
+      "name": "Seed Hero 12",
+      "kind": "sprite",
+      "theme": "人物",
+      "category": "character",
+      "tags": [
+        "people",
+        "character",
+        "custom",
+        "vector",
+        "default"
+      ],
+      "file": "default/seed_hero_12.svg",
+      "cx": 50,
+      "cy": 50,
+      "w": 100,
+      "h": 100,
+      "series": "",
+      "seed": 12
+    }
+  ]
+}

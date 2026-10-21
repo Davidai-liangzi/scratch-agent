@@ -1299,7 +1299,7 @@ class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("设置")
-        self.resize(560, 600)
+        self.resize(560, 680)
         cfg = script.LLM_CONFIG
         provider = str(cfg.get("provider") or "")
         api_keys = cfg.get("api_keys") or {}
@@ -1379,6 +1379,20 @@ class SettingsDialog(QDialog):
         bottom.addRow("编辑器", turbo_row)
         outer.addLayout(bottom)
 
+        # 生成质量：只在设置里手动开，默认单轮快速生成
+        quality_box = QWidget()
+        quality_form = QVBoxLayout(quality_box)
+        quality_form.setContentsMargins(0, 8, 0, 0)
+        quality_form.setSpacing(2)
+        self.quality_check = QCheckBox("高质量模式（设计文档 + 分幕生成 + 审稿 + 视觉选角）")
+        self.quality_check.setChecked(script.quality_mode() == "premium")
+        quality_form.addWidget(self.quality_check)
+        quality_hint = QLabel("关闭：单轮快速生成；开启：更慢，约 2~3 倍 token，适合正式作品。")
+        quality_hint.setWordWrap(True)
+        quality_hint.setStyleSheet("color:#6B7280; font-size:12px;")
+        quality_form.addWidget(quality_hint)
+        outer.addWidget(quality_box)
+
         # 问题反馈（放设置里：不占主界面空间）
         feedback_row = QHBoxLayout()
         feedback_btn = QPushButton("问题反馈")
@@ -1411,7 +1425,8 @@ class SettingsDialog(QDialog):
         # 中转站地址/模型名始终落盘（未选 custom 时输入框与存值一致，等同无操作）；
         # save_config 不会清理这两项。
         script.save_config(api_keys=api_keys, turbowarp_path=turbo,
-                           custom_base_url=custom_base_url, custom_models=custom_models)
+                           custom_base_url=custom_base_url, custom_models=custom_models,
+                           quality_mode="premium" if self.quality_check.isChecked() else "fast")
         provider = str(script.LLM_CONFIG.get("provider") or "")
         script.LLM_CONFIG.update({
             "api_keys": api_keys,

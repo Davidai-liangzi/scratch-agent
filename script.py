@@ -47,6 +47,7 @@ from core.config import (
     key_for,
     load_llm_config,
     provider_needs_key,
+    quality_mode,
     resolve_models,
     save_config,
     split_models,

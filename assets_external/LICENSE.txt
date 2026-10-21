@@ -1,0 +1,4 @@
+Kenney RPG Urban Pack
+Source: https://kenney.nl/assets/rpg-urban-pack
+License: CC0-1.0 (Creative Commons Zero v1.0 Universal)
+All art in this folder is CC0; attribution is not required but appreciated.

@@ -144,10 +144,16 @@ Copy-Item D:\node.js\node.exe dist\ScratchGenerator\node.exe
 Copy-Item $env:APPDATA\npm\node_modules\fractch dist\ScratchGenerator\fractch -Recurse
 
 # 3. 运行时验证组件（含 scratch-vm 依赖，约 143MB）。首次需先装依赖：npm install --prefix vm-runner
+#    vm-runner 里还包含 sharp（把素材渲染成缩略图，供高质量模式的视觉选角）
 Copy-Item vm-runner dist\ScratchGenerator\vm-runner -Recurse
 
 # 4. 官方素材清单 + 本地缓存，保证离线可用
 Copy-Item assets_lib dist\ScratchGenerator\assets_lib -Recurse
+
+# 4.5 外部 CC0 素材包 + 自绘种子角色 + 离线价格表
+Copy-Item assets_external dist\ScratchGenerator\assets_external -Recurse
+Copy-Item assets_characters dist\ScratchGenerator\assets_characters -Recurse
+Copy-Item model_prices.json dist\ScratchGenerator\
 
 # 5. 前端界面（WebEngine 渲染用，含 webview.html + marked/highlight/qwebchannel）
 Copy-Item ui dist\ScratchGenerator\ui -Recurse
@@ -155,7 +161,7 @@ Copy-Item ui dist\ScratchGenerator\ui -Recurse
 Copy-Item 使用说明.txt dist\ScratchGenerator\
 ```
 
-便携包结构：`ScratchGenerator.exe` + `node.exe` + `fractch/` + `vm-runner/` + `assets_lib/` + `ui/` + `_internal/` + `使用说明.txt`。运行时 `_fractch_invoke()` 优先用应用目录内的 `node.exe` + `fractch/bin/cli.js`，找不到才回退到 PATH 里的 fractch；`run_project_validation()` 用应用目录内的 `node.exe` + `vm-runner/run.js` 做无头运行验证，缺 `vm-runner/` 时跳过运行时检查。
+便携包结构：`ScratchGenerator.exe` + `node.exe` + `fractch/` + `vm-runner/` + `assets_lib/` + `assets_external/` + `assets_characters/` + `ui/` + `model_prices.json` + `_internal/` + `使用说明.txt`。运行时 `_fractch_invoke()` 优先用应用目录内的 `node.exe` + `fractch/bin/cli.js`，找不到才回退到 PATH 里的 fractch；`run_project_validation()` 用应用目录内的 `node.exe` + `vm-runner/run.js` 做无头运行验证，缺 `vm-runner/` 时跳过运行时检查。
 
 ## 已知能力边界
 

@@ -1,6 +1,6 @@
 import os
 
-from core import assets_lib
+from core import assets_lib, storygen
 from core.assets import user_image_variant
 
 
@@ -34,9 +34,9 @@ _BACKDROP_TEMPLATES = [
 
 # 游览 / 剧情类场景包（按需注入，非游览类需求不加载）
 _SCENE_TOUR = """
-【游览 / 剧情类项目（例如"购物中心游览"）的标准结构，按这个来组织】
+【游览 / 剧情类项目的通用约束（具体场景序列以【本次编排】为准；下面的四段只是参考写法，不要照抄段数/顺序）】
 ⚠️ 下面的背景名 Lobby、Beauty1 只是**结构占位示意**，不是真实素材；实际生成时背景必须换成文末【素材目录】里真实存在的名字（如 Hall、Room 1、Metro），禁止照抄占位名。
-整体分四段，全部用广播串起来：
+下面是一个常见参考结构（仅示例，实际段数/顺序按【本次编排】）：
   段 1 标题页：背景 "Lobby"，一个 Title 角色显示欢迎语，Guide 角色在旁边招手；提示点击选项。
   段 2 选择路线：屏幕上并排三个选项角色（如 RouteA / RouteB / RouteC），各自 when clicked。
         **关键：点中一个后，三个选项必须一起消失。** 角色之间不能互相 hide，正确做法是"点谁谁广播，所有选项一起收"：
@@ -96,7 +96,8 @@ _SCENE_TOUR = """
 
 # 点击类小游戏场景包（按需注入）
 _SCENE_GAME = """
-【点击类小游戏（打地鼠、点气球等）】用轮询鼠标，一个角色一个脚本完成 冒头→等待被点→收回：
+【点击类小游戏参考写法（仅当【本次编排】包含点击类小游戏时使用；场景序列以【本次编排】为准）】
+用轮询鼠标，一个角色一个脚本完成 冒头→等待被点→收回：
    when flag {
        set_x -120;                     # 这个角色固定的位置
        set_y -80;
@@ -119,6 +120,8 @@ _SCENE_GAME = """
            wait 0.05;
        }
    }
+  # 如果【本次编排】里 interaction 是 key：把 sensing.mousedown() 换成
+  # sensing.keypressed(KEY_OPTION: sensing.keyoptions("space"))，并保留 hit 防止重复计分。
 """
 
 
@@ -159,11 +162,13 @@ _SYSTEM_PROMPT_CORE = """
   item(items, i);  items.length;  hasItem(items, v);  indexOf(items, v);
 - 变量监视器（在舞台上显示数值）用声明：watch var "score" at 10,10;
 
-【素材：一律用官方素材库，禁止自己画 SVG】
-程序内置 Scratch 官方素材库（数百个专业设计的角色/背景/音效），直接引用即可，效果远好于自己画。
+【素材：一律用内置素材库（官方 + 外部 CC0），禁止自己画 SVG】
+程序内置 Scratch 官方素材库与外部 CC0 素材包（数百个专业设计的角色/背景/音效），直接引用即可，效果远好于自己画。
 规则：
 1. **先根据需求确定题材**，再到文末【素材目录】里对应题材挑角色和背景。
    同一项目尽量选同一题材、画面协调的素材；素材名必须真实存在于目录，禁止凭记忆编造。
+   ★ 目录里带「外部」标记的是 CC0 外部素材（如 Kenney），引用方式与官方素材相同；
+     它们通常是单造型，不要假设有动画帧。
 2. 造型/背景一律用 `@official:<素材名>` 引用，**不要自己写 SVG**：
        {"path":"Guide/assets/cat-a.svg","content":"@official:cat-a"},
        {"path":"Stage/assets/Galaxy.png","content":"@official:Galaxy"}
@@ -172,6 +177,9 @@ _SYSTEM_PROMPT_CORE = """
 3. 代码里 `costume "cat-a";` / `backdrop "Galaxy";` 切换，名字就是素材名。
 4. 一个角色的造型通常成套（如 Cat 有 cat-a / cat-b），想用动画就把它们都引用（没被代码引用的会被剪掉）。
 5. 目录里确实没有合适素材时，才按下面兜底自己画（用最简单几何图形）。
+6. 音效也直接引用官方音效库：把文件 content 写成 `@official:<音效名>`（如 Pop / Coin / Cheer），
+   代码里用 `play_sound "Pop";`。常用音效：Pop、Coin、Cheer、Drum、Meow、Boing、Alert、
+   Footsteps、Snap、Splash、Win、Lose、Gong。**不要自己生成音频文件**。
 
 【SVG 兜底（仅当官方素材库确实没有、必须自己画时，用最简单几何图形）】
 - 合法 XML：单根 <svg>、标签闭合、属性值一律单引号。
@@ -232,6 +240,10 @@ _SYSTEM_PROMPT_CORE = """
   music.restForBeats(BEATS: 0.25);
   music.setTempo(TEMPO: 60);
   sound.setvolumeto(VOLUME: 100);  sound.changevolumeby(VOLUME: -10);
+▲ 音效（官方音效库）：
+  sound "Pop" file "assets/Pop.wav";   # 声明；用 @official: 引用时程序会自动补，不要手写
+  play_sound "Pop";                    # 播放一次
+  play_sound_until_done "Cheer";       # 播放并等到结束
 ▲ 取值与运算：
   random(1, 10);  length("字符串");  contains("子串", "字符串");
   round(x) abs(x) sqrt(x) sin(x) cos(x) tan(x);
@@ -308,6 +320,17 @@ _SYSTEM_PROMPT_CORE = """
      而且对三条路线都成立；自动推进的地方不要写"按 X 继续"这种提示；
    - 被点中的目标过一会儿还能再次出现，可以反复得分；
    - 所有角色的活动范围在 x: -200~200、y: -140~140 之内，不会跑到舞台外。
+9. 音频不能全程静音：至少 1 段背景音乐（某个角色 forever 循环 music.playNoteForBeats，循环里有 wait），
+   以及 2 处关键交互音效（点击/得分/过关时 play_sound "Pop" / "Coin" / "Cheer" 等）。
+10. 代码必须写注释：每个角色的 main.fractch 顶部写一行说明职责，每个事件块（when ...）前写一行说明。
+11. 用户明确要求英文时，所有台词、标题、注释都用英文，不要混中文。
+"""
+
+
+# 需求不明确时用的通用约束：不再同时注入「游览 + 打地鼠」两套固定剧本
+_SCENE_GENERIC = """
+【通用编排约束】具体场景序列、交互方式和台词以【本次编排】为准；
+不要默认套用「标题→三选项→三站」或「打地鼠」模板。按编排里的场景数、交互方式和目标实现。
 """
 
 
@@ -315,13 +338,16 @@ def _select_scene_pack(user_prompt: str) -> str:
     """根据用户需求关键词，选择要按需注入的场景包文本。"""
     p = (user_prompt or "").lower()
     parts = []
-    if any(k in p for k in ("游览", "路线", "导游", "剧情", "参观", "讲解", "导览", "场景", "tour", "guide")):
+    if any(k in p for k in ("游览", "路线", "导游", "剧情", "参观", "讲解", "导览", "场景",
+                            "故事", "冒险", "探险", "闯关", "tour", "guide", "story", "adventure")):
         parts.append(_SCENE_TOUR)
-    if any(k in p for k in ("打地鼠", "点击", "点气球", "气球", "捕捉", "catch", "click", "whack", "game")):
+    if any(k in p for k in ("游戏", "小游戏", "打地鼠", "点击", "点气球", "气球", "捕捉", "射击",
+                            "收集", "答题", "跑酷", "消除", "节奏", "贪吃蛇", "迷宫",
+                            "catch", "click", "whack", "game", "shooter", "quiz", "runner")):
         parts.append(_SCENE_GAME)
-    # 一个关键词都没匹配时，注入全部（兜底，避免遗漏关键指导）
+    # 一个关键词都没匹配时，只给通用约束；具体结构由【本次编排】决定
     if not parts:
-        parts = [_SCENE_TOUR, _SCENE_GAME]
+        parts = [_SCENE_GENERIC]
     return "\n\n".join(parts)
 
 
@@ -375,13 +401,25 @@ def build_user_images_block(user_images, vision: bool = False) -> str:
     return "\n".join(lines)
 
 
-def build_user_prompt(user_prompt: str, user_images=None, vision: bool = False) -> str:
-    """动态用户消息：场景包（按需求选择）+ 用户图片清单 + 用户需求本身。
+def build_user_prompt(user_prompt: str, user_images=None, vision: bool = False,
+                      asset_block: str = None, flow_block: str = None) -> str:
+    """动态用户消息：场景包 + 本次编排 + 本次选材 + 用户图片清单 + 用户需求本身。
 
-    场景包与图片清单都属于「随需求变」的部分，故放在 user 消息里，
+    场景包、编排块、选材块与图片清单都属于「随需求变」的部分，故放在 user 消息里，
     不污染 system 的静态前缀（前缀缓存友好）。
+    asset_block / flow_block 由调用方传入时，同一次生成的大纲与编码会共用同一份。
     """
-    parts = [_select_scene_pack(user_prompt)]
+    parts = []
+    if flow_block is None:
+        flow_block = storygen.build_story_block(user_prompt)
+    if flow_block:
+        # 先给「本次编排」，再给结构参考；避免模型先读到固定四段示例就照抄
+        parts.append(flow_block)
+    parts.append(_select_scene_pack(user_prompt))
+    if asset_block is None:
+        asset_block = assets_lib.build_prompt_asset_block(user_prompt)
+    if asset_block:
+        parts.append(asset_block)
     block = build_user_images_block(user_images, vision)
     if block:
         parts.append(block)
@@ -422,11 +460,17 @@ OUTLINE_PROMPT = """你是 Scratch 项目设计助手。请**先不要写任何 
    - 模板里也没有合适的，才留空字符串，由编码阶段自绘一张简单背景。
    - **禁止借用不相关的背景**（例如美食区不要用 Party、Refrigerator 凑数）。
    - 单场景项目（没有多站/多关）写空数组 `[]`。
-5. **选材**：从文末【素材目录】里选与主题**题材匹配**的角色和背景，用 `@official:<素材名>` 引用；
+5. **选材**：优先从文末【本次选材】里挑角色和背景（这是本轮随机轮换出的候选），
+   用 `@official:<素材名>` 引用；【本次选材】里确实没有合适的，再从【素材目录】补。
    素材名必须真实存在于目录，禁止凭记忆编造（不要用目录里没有的名字）。
    同一项目尽量选同一题材、画面协调的素材；目录里确实没有时 asset 留空字符串交给程序兜底。
-6. flow 要能支撑一个完整可玩、能收尾的项目；**编码阶段会严格照 `player.move` 与 `stations` 实现**，
-   所以这里的设定必须是你真正想要的效果。
+6. flow 必须直接使用【本次编排】的场景序列、交互方式和台词；**编码阶段会严格照 `player.move`、
+   `stations` 与编排实现**。不要自行改顺序、增删场景，也不要退回固定的「标题→三选项→三站」结构。
+7. **避免和默认答案雷同**：不要因为素材名叫 Cat、Ball、Room 1、Party 就直接选它；
+   优先用【本次选材】里不同题材、不同主角的组合。需要角色动画时，在 `sprites[].asset`
+   里写角色名，并在 `duty` 里注明要用哪些造型（造型名见【本次选材】）。
+8. **编排锁定**：`stations` 只填【本次编排】里的 station 场景，顺序一致；intro / route_choice /
+   mini_game / quiz / ending 这些场景写进 `flow`，不要漏掉；每个场景的 interaction 与台词按编排原样使用。
 只输出 JSON 本体，不要 Markdown、不要解释。"""
 
 
@@ -452,12 +496,29 @@ def build_backdrop_templates_block(outline: str) -> str:
     return "\n".join(lines)
 
 
-def build_outline_user_prompt(user_prompt: str) -> str:
-    """构造「设计大纲」请求的用户消息。"""
-    return (f"需求：{user_prompt}\n\n"
-            f"【内置背景模板】{backdrop_template_names()}"
-            f"（素材库缺对应题材时优先用这些，把模板名直接写进 backdrop）\n\n"
-            f"请输出设计大纲。")
+def backdrop_template_svg(name: str) -> str:
+    """按模板名取内置背景 SVG；找不到返回空串（供分幕装配阶段使用）。"""
+    for template_name, svg in _BACKDROP_TEMPLATES:
+        if template_name == str(name or "").strip():
+            return svg
+    return ""
+
+
+def build_outline_user_prompt(user_prompt: str, asset_block: str = "",
+                              flow_block: str = "") -> str:
+    """构造「设计大纲」请求的用户消息。
+
+    asset_block / flow_block 与编码阶段共用同一份，保证大纲和最终代码一致。
+    """
+    parts = [f"需求：{user_prompt}"]
+    if flow_block:
+        parts.append(flow_block)
+    if asset_block:
+        parts.append(asset_block)
+    parts.append(f"【内置背景模板】{backdrop_template_names()}"
+                 f"（素材库缺对应题材时优先用这些，把模板名直接写进 backdrop）")
+    parts.append("请输出设计大纲。")
+    return "\n\n".join(parts)
 
 
 REPAIR_PROMPT_FULL = """你上一次的输出有问题，报错如下：

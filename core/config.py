@@ -285,12 +285,51 @@ def save_config(**kwargs) -> None:
 # 运行期配置（GUI 保存后会同步刷新）
 LLM_CONFIG = load_llm_config()
 
+
+def quality_mode() -> str:
+    """生成模式：fast = 现有单轮；premium = 设计文档 + 分幕生成。
+
+    优先级：环境变量 SCRATCH_QUALITY_MODE > config.json 的 quality_mode > fast。
+    环境变量便于 A/B / 测试临时切换，不改用户配置。
+    """
+    env = os.environ.get("SCRATCH_QUALITY_MODE", "").strip().lower()
+    if env in ("fast", "premium"):
+        return env
+    value = str(_read_config_file().get("quality_mode") or "").strip().lower()
+    return value if value in ("fast", "premium") else "fast"
+
+
+def critic_enabled() -> bool:
+    """premium 模式下是否跑审稿评分（SCRATCH_CRITIC=0 可关闭，便于做 A/B）。"""
+    env = os.environ.get("SCRATCH_CRITIC", "").strip().lower()
+    if env in ("0", "off", "false"):
+        return False
+    if env in ("1", "on", "true"):
+        return True
+    value = str(_read_config_file().get("critic", "")).strip().lower()
+    return value not in ("0", "off", "false")
+
+
+def casting_enabled() -> bool:
+    """premium 模式下是否做视觉选角（SCRATCH_CASTING=0 可关闭）。"""
+    env = os.environ.get("SCRATCH_CASTING", "").strip().lower()
+    if env in ("0", "off", "false"):
+        return False
+    if env in ("1", "on", "true"):
+        return True
+    value = str(_read_config_file().get("casting", "")).strip().lower()
+    return value not in ("0", "off", "false")
+
+
 # 生成/编译失败后最多让 AI 修复几次
 MAX_ATTEMPTS = 3
 
-# 运行时验证发现问题后，最多自动反思修复几轮（避免无限循环）
+# 运行期验证发现问题后，最多自动反思修复几轮（避免无限循环）
 # 设为 1：运行时修复一轮通常就够，多轮既慢又未必更好（每轮都要重发完整提示词）
 AUTO_FIX_ROUNDS = 1
+
+# 高质量模式的试玩时长（秒）；run.js 会在交互冒烟后再跑这么久
+PLAYTEST_SECONDS = 15
 
 # 生成/修改成功后是否自动打开 .sb3
 AUTO_OPEN_SB3 = True

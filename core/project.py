@@ -3,14 +3,36 @@ import os
 import re
 import shutil
 
-from core import assets_lib
+from core import (
+    assembler,
+    assets_lib,
+    casting,
+    critic,
+    layout_check,
+    planner,
+    playtest,
+    schemas,
+    storygen,
+    writer,
+)
 from core.assets import (
     inject_costume_declarations,
     inject_missing_sprite_costumes,
     resolve_official_assets,
     resolve_user_assets,
 )
-from core.config import AUTO_FIX_ROUNDS, LLM_CONFIG, MAX_ATTEMPTS, PROVIDERS, TIERS, supports_vision
+from core.config import (
+    AUTO_FIX_ROUNDS,
+    LLM_CONFIG,
+    MAX_ATTEMPTS,
+    PLAYTEST_SECONDS,
+    PROVIDERS,
+    TIERS,
+    casting_enabled,
+    critic_enabled,
+    quality_mode,
+    supports_vision,
+)
 from core.fractch import (
     check_project,
     decompile_sb3,
@@ -89,7 +111,8 @@ def _repair_files(manifest: dict, error: str) -> dict:
 
 
 def _repair_messages(user_prompt: str, manifest: dict, error: str,
-                     user_images=None, vision: bool = False) -> list:
+                     user_images=None, vision: bool = False,
+                     asset_block: str = "", flow_block: str = "") -> list:
     """构造回炉请求（每轮重建，对话历史不累积）。
 
     - 已有可用清单：把当前文件**完整内容**给出，并只要求模型输出改动的文件（省输出）。
@@ -106,7 +129,8 @@ def _repair_messages(user_prompt: str, manifest: dict, error: str,
                           "没有列出的文件保持原样，请不要凭空重写。）\n\n" + files_text)
         user_content = REPAIR_PROMPT.format(project_files=files_text, error=error)
     else:
-        user_text = (build_user_prompt(user_prompt, user_images, vision)
+        user_text = (build_user_prompt(user_prompt, user_images, vision,
+                                       asset_block=asset_block, flow_block=flow_block)
                      + "\n\n" + REPAIR_PROMPT_FULL.format(error=error))
         user_content = build_user_content(user_text, user_images if vision else None)
     return [
@@ -268,6 +292,19 @@ def modify_project(work_dir: str, feedback: str, output_sb3: str = None,
         print(f"❌ 修改结果解析失败：{e}")
         return False
 
+    # 素材名校验：与生成流程一致，先修正再定向修复
+    files, unknown_assets = schemas.normalize_asset_refs(files)
+    if unknown_assets:
+        print(f"🧹 检测到 {len(unknown_assets)} 个不在目录中的素材名，尝试定向修复…")
+        replacements = _repair_unknown_assets(unknown_assets, stop_event=stop_event,
+                                              on_usage=on_usage)
+        if replacements:
+            files = schemas.apply_replacements(files, replacements)
+            files, unknown_assets = schemas.normalize_asset_refs(files)
+        if unknown_assets:
+            preview = "、".join(item["name"] for item in unknown_assets[:5])
+            print(f"⚠️ 仍有 {len(unknown_assets)} 个素材名无法解析（{preview}），将使用兜底图形")
+
     # 写盘前快照，失败可回滚（避免把工程改坏后留在磁盘上）
     snap = _snapshot(work_dir)
     # 先解析用户图片（@user:N），再解析官方素材（@official:），声明合并后统一注入
@@ -375,21 +412,49 @@ def _is_complex(user_prompt: str) -> bool:
     return any(k in p for k in _COMPLEX_HINTS)
 
 
-def _request_outline(user_prompt: str, stop_event=None, on_chunk=None, on_usage=None) -> str:
+def _repair_unknown_assets(unknown, stop_event=None, on_usage=None) -> dict:
+    """只把错误项和候选素材发给模型，返回 {旧名: 新名}。"""
+    if not unknown:
+        return {}
+    prompt = schemas.build_asset_repair_prompt(unknown)
+    raw = ask_llm([{"role": "user", "content": prompt}],
+                  stop_event=stop_event, on_usage=on_usage)
+    if not raw:
+        return {}
+    try:
+        data = parse_spec(raw)
+    except ValueError:
+        return {}
+    replacements = data.get("replacements") if isinstance(data, dict) else {}
+    if not isinstance(replacements, dict):
+        return {}
+    return {str(k): str(v).strip() for k, v in replacements.items() if str(v).strip()}
+
+
+def _request_outline(user_prompt: str, stop_event=None, on_chunk=None, on_usage=None,
+                     asset_block: str = "", flow_block: str = "") -> str:
     """复杂需求先让模型输出「设计大纲」，返回大纲 JSON 文本；失败返回 ''（回退单轮）。
 
     GenerationStopped 不在此吞掉，向上传播（用户停止要立即中断，不能静默回退）。
+    asset_block / flow_block 与后续编码共用，避免大纲和最终代码各选一套。
     """
     try:
         raw = ask_llm([
             {"role": "system", "content": build_system_prompt()},
-            {"role": "user", "content": OUTLINE_PROMPT + "\n\n" + build_outline_user_prompt(user_prompt)},
+            {"role": "user", "content": OUTLINE_PROMPT + "\n\n"
+             + build_outline_user_prompt(user_prompt, asset_block, flow_block)},
         ], stop_event=stop_event, on_chunk=on_chunk, on_usage=on_usage)
         if not raw:
             return ""
         spec = parse_spec(raw)
         if not isinstance(spec, dict) or not spec.get("sprites"):
             return ""
+        spec, unknown = schemas.normalize_outline(spec)
+        if unknown:
+            print(f"⚠️ 大纲里有 {len(unknown)} 个素材名不在目录中（编码阶段会再次校验）")
+        outline_errors = schemas.validate_outline(spec)
+        if outline_errors:
+            print(f"⚠️ 大纲结构提示：{'；'.join(outline_errors[:3])}")
         return json.dumps(spec, ensure_ascii=False)
     except GenerationStopped:
         raise
@@ -433,18 +498,68 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
     if user_images and not vision:
         print(f"ℹ️ 当前模型（{primary_model or '未知'}）不支持读图，"
               f"将只按文字描述使用你拖入的图片（图片仍会作为素材放进工程）。")
-    user_text = build_user_prompt(user_prompt, user_images, vision)
+    # 每次生成只抽一次「本次选材」和「本次编排」，大纲与编码共用。
+    asset_block = assets_lib.build_prompt_asset_block(user_prompt)
+    flow_block = storygen.build_story_block(user_prompt)
+    user_text = build_user_prompt(user_prompt, user_images, vision,
+                                  asset_block=asset_block, flow_block=flow_block)
 
     # 分步生成（BUG-03 步骤 4）：复杂需求先出「设计大纲」，再据此生成完整清单。
     # 大纲这轮输出很短（角色 + 素材引用 + 流程），但能让后续编码结构更稳、少回炉。
     # 大纲失败则静默回退到单轮（不阻塞主流程）。
     # outline_json 要留着传给 lint：用来做「逐站背景是否真的切换过」的确定性校验（BUG-14）。
     outline_json = ""
-    if _is_complex(user_prompt):
+    premium_files = None
+    plan = None
+    if quality_mode() == "premium":
+        # 高质量模式：设计文档 → 分幕生成（任一阶段失败就回退单轮）
+        _emit_step(step_cb, "outline", "start", "设计文档")
+        print("🧭 高质量模式：先生成设计文档…")
+        plan = planner.design(user_prompt, asset_block=asset_block, flow_block=flow_block,
+                              stop_event=stop_event, on_chunk=on_chunk, on_usage=on_usage)
+        if plan:
+            _emit_step(step_cb, "outline", "done", "设计文档",
+                       f"{len(plan.get('beats') or [])} 幕")
+            print(f"✅ 设计文档已确定：{len(plan.get('beats') or [])} 幕")
+            if casting_enabled():
+                _emit_step(step_cb, "casting", "start", "视觉选角")
+                plan, cast_report = casting.refine(plan, user_prompt,
+                                                   stop_event=stop_event, on_usage=on_usage)
+                if cast_report.get("replacements"):
+                    print("🎨 视觉选角替换：" + "、".join(
+                        f"{old}→{new}" for old, new in cast_report["replacements"].items()))
+                elif cast_report.get("problems"):
+                    print("🎨 视觉选角提示：" + "；".join(cast_report["problems"][:2]))
+                _emit_step(step_cb, "casting", "done", "视觉选角")
+            try:
+                if plan.get("routes"):
+                    # 多路线项目：控制流（Stage/调度器/选项/站点等待）全部由装配器生成，
+                    # 模型只负责设计文档里的台词与素材，避免状态机写错。
+                    print("🧩 多路线项目：控制流由装配器生成")
+                    premium_files = assembler.build_tour_project(plan)
+                else:
+                    premium_files = writer.write_project(plan, asset_block=asset_block,
+                                                         stop_event=stop_event,
+                                                         on_chunk=on_chunk, on_usage=on_usage)
+            except (writer.BeatWriteError, ValueError) as exc:
+                print(f"⚠️ 分幕生成失败，回退单轮生成：{exc}")
+            if premium_files:
+                print(f"✅ 分幕生成完成：{len(premium_files)} 个文件")
+                if critic_enabled() and not plan.get("routes"):
+                    _emit_step(step_cb, "critic", "start", "审稿评分")
+                    premium_files = critic.improve(plan, premium_files,
+                                                  stop_event=stop_event, on_usage=on_usage)
+                    _emit_step(step_cb, "critic", "done", "审稿完成")
+                elif plan.get("routes"):
+                    print("ℹ️ 多路线项目的控制流已确定，跳过审稿重写")
+        else:
+            print("⚠️ 设计文档生成失败，回退单轮生成")
+    elif _is_complex(user_prompt):
         _emit_step(step_cb, "outline", "start", "设计大纲")
         print("🧭 复杂需求，先生成设计大纲…")
         outline = _request_outline(user_prompt, stop_event=stop_event, on_chunk=on_chunk,
-                                   on_usage=on_usage)
+                                   on_usage=on_usage, asset_block=asset_block,
+                                   flow_block=flow_block)
         if outline:
             outline_json = outline
             user_text += ("\n\n【已确定的设计大纲（据此生成完整清单，不要偏离大纲的角色、素材、"
@@ -474,10 +589,14 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
             provider_display = PROVIDERS.get(LLM_CONFIG["provider"], {}).get("display", LLM_CONFIG["provider"])
             tier_label = dict(TIERS).get(LLM_CONFIG["tier"], LLM_CONFIG["tier"])
             _emit_step(step_cb, "request", "start", "请求模型生成清单", f"第 {attempt}/{MAX_ATTEMPTS} 次尝试")
-            print(f"\n🤖 [1/5] 正在请求 {provider_display} · {tier_label} 生成项目文件清单...（第 {attempt}/{MAX_ATTEMPTS} 次尝试）")
 
-            raw_spec = ask_llm(messages, stop_event=stop_event, on_chunk=on_chunk,
-                               on_usage=on_usage)
+            if attempt == 1 and premium_files:
+                print("\n📝 [1/5] 使用分幕生成结果，跳过整包请求")
+                raw_spec = json.dumps({"files": premium_files}, ensure_ascii=False)
+            else:
+                print(f"\n🤖 [1/5] 正在请求 {provider_display} · {tier_label} 生成项目文件清单...（第 {attempt}/{MAX_ATTEMPTS} 次尝试）")
+                raw_spec = ask_llm(messages, stop_event=stop_event, on_chunk=on_chunk,
+                                   on_usage=on_usage)
             if raw_spec is None:
                 return False
 
@@ -495,8 +614,23 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                     print(f"\n❌ 已重试 {MAX_ATTEMPTS} 次仍未拿到合法文件清单。")
                     return False
                 print("🔁 正在把问题反馈给 AI 让它重新生成...")
-                messages = _repair_messages(user_prompt, manifest, str(e), user_images, vision)
+                messages = _repair_messages(user_prompt, manifest, str(e), user_images, vision,
+                                            asset_block=asset_block, flow_block=flow_block)
                 continue
+
+            # 2.5 素材名校验：先本地修正大小写/拼写，再对未知项做一次定向修复
+            files, unknown_assets = schemas.normalize_asset_refs(files)
+            if unknown_assets:
+                print(f"🧹 检测到 {len(unknown_assets)} 个不在目录中的素材名，尝试定向修复…")
+                replacements = _repair_unknown_assets(unknown_assets, stop_event=stop_event,
+                                                      on_usage=on_usage)
+                if replacements:
+                    files = schemas.apply_replacements(files, replacements)
+                    files, unknown_assets = schemas.normalize_asset_refs(files)
+                if unknown_assets:
+                    preview = "、".join(item["name"] for item in unknown_assets[:5])
+                    print(f"⚠️ 仍有 {len(unknown_assets)} 个素材名无法解析（{preview}），将使用兜底图形")
+            manifest = {it["path"]: it["content"] for it in files}
 
             _emit_step(step_cb, "request", "done", "文件清单已生成", f"{len(files)} 个文件")
             if attempt == 1:
@@ -539,7 +673,7 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                     messages = _repair_messages(
                         user_prompt, manifest,
                         "工程检查发现了以下问题（语法错误或结构契约问题，会导致打包失败或游戏玩不起来）：\n" + report,
-                        user_images, vision)
+                        user_images, vision, asset_block=asset_block, flow_block=flow_block)
                     continue
 
             _emit_step(step_cb, "pack", "start", "fractch 打包")
@@ -559,7 +693,31 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                     # 自动反思修复：发现问题 → 用修改意见驱动一轮修复 → 再验证，最多 AUTO_FIX_ROUNDS 轮
                     for _ in range(AUTO_FIX_ROUNDS):
                         issues = detect_runtime_issues(result, "\n".join(manifest.values()))
+                        # 高质量模式：再跑一段试玩，只抓结构性断点（点击无反应/游戏没开始）
+                        if quality_mode() == "premium" and plan:
+                            if plan.get("routes"):
+                                # 多路线：逐条强制选路，验证每一条都能走到 game_end
+                                for index in range(1, len(plan.get("routes") or []) + 1):
+                                    played = playtest.run(output_sb3,
+                                                          seconds=PLAYTEST_SECONDS + 10,
+                                                          route=index)
+                                    if played:
+                                        print(f"🎮 路线 {index}：" + playtest.summary(played))
+                                        issues += [f"路线 {index}: {x}" for x in
+                                                   playtest.evaluate(plan, played)]
+                                    else:
+                                        issues.append(f"路线 {index}: 试玩没有返回结果")
+                            else:
+                                played = playtest.run(output_sb3, seconds=PLAYTEST_SECONDS)
+                                if played:
+                                    print("🎮 试玩：" + playtest.summary(played))
+                                    issues += playtest.evaluate(plan, played)
+                            issues += layout_check.check(result)
                         if not issues:
+                            break
+                        if plan and plan.get("routes"):
+                            # 控制流由装配器生成，让 LLM 改代码只会破坏状态机
+                            print("⚠️ 路线验收未通过（控制流由装配器生成，跳过 LLM 自动修复）")
                             break
                         print(f"⚠️ 检测到 {len(issues)} 个运行问题，自动修复中…")
                         fix_prompt = "运行时验证发现以下问题，请只修改相关的 .fractch 文件来修复：\n" + \
@@ -597,4 +755,5 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                                     + lint_project(work_dir, outline=outline_json))
                           or "fractch 打包失败")
             print(f"🔁 正在把报错信息反馈给 AI 进行第 {attempt + 1} 次修复...")
-            messages = _repair_messages(user_prompt, manifest, error_text, user_images, vision)
+            messages = _repair_messages(user_prompt, manifest, error_text, user_images, vision,
+                                        asset_block=asset_block, flow_block=flow_block)

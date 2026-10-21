@@ -12,7 +12,7 @@ GITHUB_OWNER = "Davidai-liangzi"
 GITHUB_REPO = "scratch-agent"
 
 # 当前程序版本号（每次发版手动 +1 即可）
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 
 _API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
 

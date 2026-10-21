@@ -25,6 +25,9 @@ def _lookup_official(name: str):
     bd = assets_lib.backdrop_info(name)
     if bd and bd.get("md5"):
         return {"md5": bd["md5"], "cx": 240, "cy": 180}, name, "backdrop"
+    snd = assets_lib.sound_info(name)
+    if snd and snd.get("md5"):
+        return {"md5": snd["md5"], "cx": 0, "cy": 0}, name, "sound"
     return None, "", ""
 
 
@@ -82,19 +85,34 @@ def resolve_official_assets(files: list):
         target = rel.split("/")[0]
         info, decl_name, kind = _lookup_official(name)
         local = assets_lib.ensure_asset(info["md5"]) if info else ""
+        is_audio = rel.lower().endswith((".wav", ".mp3"))
         if not info or not local:
-            # 兜底不阻塞主流程，提示保持中性（不提"网络/翻墙"，避免吓到用户）
-            if info:
-                print(f"ℹ️ 素材「{name}」本次暂不可用，已用替代图形（{rel}）")
+            # 音效没法用几何图形兜底：名字不对就跳过这个文件（代码里的 play_sound 自然不会触发）
+            if is_audio:
+                print(f"ℹ️ 音效「{name}」不在素材库中，已跳过（{rel}）")
+                continue
+            # 官方库没有时，再看外部 CC0 素材包（Kenney）与种子角色；仍然找不到才兜底
+            ext = assets_lib.external_asset(name) or assets_lib.character_asset(name)
+            if ext:
+                local = ext["_path"]
+                info = {"cx": ext.get("cx", 0), "cy": ext.get("cy", 0)}
+                decl_name = name
+                kind = "backdrop" if ext.get("kind") == "backdrop" else "costume"
             else:
-                print(f"ℹ️ 素材「{name}」不在素材库中，已用替代图形（{rel}）")
-            out.append(_fallback_item(name, rel, target, decls))
-            continue
+                # 兜底不阻塞主流程，提示保持中性（不提"网络/翻墙"，避免吓到用户）
+                if info:
+                    print(f"ℹ️ 素材「{name}」本次暂不可用，已用替代图形（{rel}）")
+                else:
+                    print(f"ℹ️ 素材「{name}」不在素材库中，已用替代图形（{rel}）")
+                out.append(_fallback_item(name, rel, target, decls))
+                continue
         cx, cy = info.get("cx", 0), info.get("cy", 0)
         if kind == "backdrop":
             cx, cy = 240, 180  # 舞台背景固定用舞台中心
+        elif kind == "sound":
+            cx, cy = 0, 0
         # 用素材真实扩展名纠正路径（模型可能把 png 写成 .svg），保证 fractch dataFormat 正确
-        real_ext = os.path.splitext(info["md5"])[1] or os.path.splitext(rel)[1]
+        real_ext = os.path.splitext(info.get("md5") or local)[1] or os.path.splitext(rel)[1]
         rel = os.path.splitext(rel)[0] + real_ext
         out.append({"path": rel, "_local": local})
         decls.setdefault(target, []).append((kind, decl_name, rel, cx, cy))
@@ -199,7 +217,11 @@ def inject_costume_declarations(work_dir: str, decls: dict) -> None:
                 continue  # 已有同名声明
             # fractch 的 file 路径相对 target 目录（如 assets/cat-a.svg），不带 target 前缀
             rel_in_target = rel.split("/", 1)[1] if "/" in rel else rel
-            add.append(f'{kind} "{name}" file "{rel_in_target}" center {cx},{cy};')
+            if kind == "sound":
+                # 音效声明没有 center
+                add.append(f'sound "{name}" file "{rel_in_target}";')
+            else:
+                add.append(f'{kind} "{name}" file "{rel_in_target}" center {cx},{cy};')
         if add:
             with open(main, "w", encoding="utf-8") as f:
                 f.write("\n".join(add) + "\n" + text)
