@@ -48,14 +48,16 @@ def main() -> int:
         ok_all = ok_all and ok
         rows.append((case, must_ids, passed, ok, reports))
 
-    print(f"{'样本':<24}{'期望':<8}{'实际':<8}{'命中检查'}")
-    print("-" * 72)
+    print(f"{'样本':<24}{'注入的缺陷':<34}{'期望':<8}{'实际':<8}{'命中检查'}")
+    print("-" * 96)
     for case, must_ids, passed, ok, _ in rows:
         expect = "拒绝" if case.expect_checks else "通过"
         actual = "拒绝" if not passed else "通过"
+        defect = case.defect or "（健康对照）"
         flag = "" if ok else "  <-- 不符合预期"
-        print(f"{case.name:<24}{expect:<8}{actual:<8}{','.join(must_ids) or '-'}{flag}")
-    print("-" * 72)
+        print(f"{case.name:<24}{defect:<34}{expect:<8}{actual:<8}"
+              f"{','.join(must_ids) or '-'}{flag}")
+    print("-" * 96)
 
     for case, must_ids, passed, ok, reports in rows:
         if ok:

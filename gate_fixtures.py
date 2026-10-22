@@ -179,9 +179,29 @@ class _Project:
         self.stage_costumes = []
         self.broadcasts = {}
         self.sprites = []
+        self.monitors = []
 
     def var(self, name, init="0"):
         self.stage_vars[_var_id(name)] = [name, init]
+
+    def watch(self, name, x=5, y=5):
+        """在舞台上显示变量监视器——人工抽查时必须能看见分数在变。"""
+        self.monitors.append({
+            "id": _var_id(name),
+            "mode": "default",
+            "opcode": "data_variable",
+            "params": {"VARIABLE": name},
+            "spriteName": None,
+            "value": 0,
+            "width": 0,
+            "height": 0,
+            "x": x,
+            "y": y,
+            "visible": True,
+            "sliderMin": 0,
+            "sliderMax": 100,
+            "isDiscrete": True,
+        })
 
     def msg(self, name):
         self.broadcasts[_msg_id(name)] = name
@@ -246,7 +266,7 @@ class _Project:
         }
         return {
             "targets": [stage] + self.sprites,
-            "monitors": [],
+            "monitors": list(self.monitors),
             "extensions": [],
             "meta": {"semver": "3.0.0", "vm": "0.2.0", "agent": ""},
         }
@@ -295,6 +315,7 @@ def _healthy_score(out):
     p = _Project()
     p.background()
     p.var("score", "0")
+    p.watch("score")
     p.msg("scene_play")
     p.msg("game_end")
     st = p.stage()
@@ -465,6 +486,7 @@ def _broken_no_score(out):
     p = _Project()
     p.background()
     p.var("score", "0")
+    p.watch("score")
     p.msg("scene_play")
     st = p.stage()
     st.script(st.flag(), st.broadcast("scene_play"))
@@ -480,6 +502,7 @@ def _broken_no_settle(out):
     p = _Project()
     p.background()
     p.var("score", "0")
+    p.watch("score")
     p.msg("scene_play")
     st = p.stage()
     st.script(st.flag(), st.broadcast("scene_play"))
@@ -515,15 +538,15 @@ def _broken_dead(out):
     p = _Project()
     p.background()
     p.msg("scene_play")
-    p.msg("game_end")
     st = p.stage()
-    st.script(st.flag(), st.broadcast("scene_play"), st.broadcast("game_end"))
+    st.script(st.flag(), st.broadcast("scene_play"))
     button = p.sprite("Button")
     button.script(button.clicked())          # 点击后什么都不做
-    other = p.sprite("Other")
-    other.script(other.recv("scene_play"), other.say("待着"))
-    other.script(other.recv("game_end"), other.say("谢谢"))
-    plan = _plan("reach", 1, _beats(("intro", "game_end")))
+    # 提示语只在开场说一次：避免「点完看到别的角色的台词」被误认为点击有反应
+    guide = p.sprite("Guide", x=-120)
+    guide.script(guide.recv("scene_play"), guide.say("点按钮试试"))
+    p.sprite("Other", x=120)                 # 纯装饰，没有任何脚本
+    plan = _plan("", 0, _beats(("intro", "play")))
     return _finish(out, "broken_dead", "缺陷-09 死角色",
                    "有 when clicked 但点击无任何变化", plan, ["M9"], p)
 
