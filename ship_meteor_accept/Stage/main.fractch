@@ -1,0 +1,36 @@
+backdrop "Space" file "assets/bd_0.png" center 240,180;
+backdrop "Space City 1" file "assets/bd_1.png" center 240,180;
+backdrop "Stars" file "assets/bd_2.png" center 240,180;
+backdrop "Galaxy" file "assets/bd_3.png" center 240,180;
+/* 舞台由装配器生成：全局变量 + 背景 + 场景切换 */
+var score = 0;
+var playing = 0;
+watch var "score" at 10,10;
+watch var "playing" at 10,40;
+
+when flag {
+    score = 0;
+    playing = 0;
+    backdrop "Space";
+    broadcast scene_intro;
+}
+
+when broadcast scene_intro {
+    backdrop "Space";
+}
+
+when broadcast scene_station {
+    backdrop "Space City 1";
+}
+
+when broadcast scene_minigame {
+    backdrop "Stars";
+}
+
+when broadcast scene_ending {
+    backdrop "Galaxy";
+}
+
+when broadcast game_end {
+    stop all;
+}

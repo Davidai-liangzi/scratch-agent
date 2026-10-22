@@ -1,0 +1,31 @@
+costume "Rocketship" file "assets/Rocketship.svg" center 63,92;
+// PlayerShip - the player's fighter: it hovers at the bottom of the screen and slides left/right with the mouse so its guns stay pointed up
+
+// scene start: show up at the bottom, brief the pilot, then track the mouse until the lane is clear
+when broadcast scene_minigame {
+    playing = 1;
+    show;
+    set_size 55;
+    motion.setrotationstyle(STYLE: "left-right");
+    goto 0, -110;
+    say "三块陨石朝你压下来了，用鼠标点中它们就能击碎。" for 2;
+    say "碎一颗记一分，攒够三分航道立刻贯通。" for 2;
+    until playing == 0 {
+        if sensing.mousex() > motion.xposition() + 4 {
+            if motion.xposition() < 170 {
+                change_x 4;
+            }
+        }
+        if sensing.mousex() < motion.xposition() - 4 {
+            if motion.xposition() > -170 {
+                change_x -4;
+            }
+        }
+        wait 0.03;
+    }
+    hide;
+}
+
+when flag {
+    hide;
+}

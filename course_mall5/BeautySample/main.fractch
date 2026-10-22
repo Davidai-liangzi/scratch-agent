@@ -1,0 +1,11 @@
+costume "Glass Water" file "assets/BeautySample.svg" center 39,48;
+// BeautySample: decoration for beauty_1
+when broadcast scene_beauty_1 {
+    show;
+    goto 0, 0;
+    set_size 50;
+}
+
+when flag {
+    hide;
+}

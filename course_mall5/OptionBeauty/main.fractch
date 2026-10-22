@@ -1,0 +1,28 @@
+costume "Hat1" file "assets/OptionBeauty.svg" center 50,50;
+// OptionBeauty: option 1 (Beauty & Scent Counter)
+when broadcast scene_intro {
+    hide;
+}
+
+when broadcast scene_route_choice {
+    show;
+    goto -140, 20;
+    set_size 55;
+    say "Beauty & Scent Counter" for 1.5;
+}
+
+when clicked {
+    if route == 0 {
+        route = 1;
+        play_sound "Pop";
+        broadcast start_tour;
+    }
+}
+
+when broadcast start_tour {
+    hide;
+}
+
+when flag {
+    hide;
+}

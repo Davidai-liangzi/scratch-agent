@@ -1,0 +1,48 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Rocks" file "assets/Rocks.svg" center 59,15;
+// Asteroid2 - the second space rock, slower and starting on a different lane so the three rocks never line up
+
+// helper: send this rock back to the top of the screen in a random lane
+// (random 1..5 mapped by arithmetic to -140, -70, 0, 70, 140 - one branch instead of five)
+def @respawn() {
+    set_y 140;
+    set_x ((random(1, 5) - 3) * 70);
+}
+
+// scene start: drift down from the top, and come down again from above every time it slips past the bottom
+when broadcast scene_minigame {
+    show;
+    set_size 40;
+    motion.setrotationstyle(STYLE: "left-right");
+    set_y 140;
+    set_x 0;
+    until playing == 0 {
+        change_y -2;
+        if motion.yposition() < -140 {
+            @respawn();
+            wait 0.25;
+        }
+        wait 0.04;
+    }
+    hide;
+}
+
+// clicked by the mouse: score a point, pop, then climb back up top for another pass; at 3 the lane is clear
+when clicked {
+    if playing == 1 {
+        score += 1;
+        play_sound "Pop";
+        if score >= 3 {
+            playing = 0;
+            hide;
+            broadcast scene_ending;
+        } else {
+            @respawn();
+        }
+    }
+}
+
+// hidden until the minigame scene starts
+when flag {
+    hide;
+}

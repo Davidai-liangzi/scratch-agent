@@ -1,0 +1,27 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Retro Robot a" file "assets/RetroRobot_a.svg" center 55.04000000000008,85.55;
+// PilotBot: Captain ZX-9 in the intro scene — explains that the K7 supply lane is blocked by asteroids; clicking him clears the score and sends you to the hangar.
+
+// On entering intro: the captain appears on the left side and briefs the pilot, then waits to be clicked.
+when broadcast scene_intro {
+    show;
+    costume "Retro Robot a";
+    set_size 65;
+    set_x -110;
+    set_y 10;
+    say "我是机长 ZX-9。编号 K7 的补给航道被陨石堵死了，补给船全卡在外面。" for 3;
+    say "点我一下，去机库领你的飞船——打碎 3 颗陨石就够开出一条路了。";
+}
+
+// Player clicks the captain: play a confirmation sound, reset the score, tell the drifting rocks to leave, then go to the hangar.
+when clicked {
+    play_sound "Pop";
+    score = 0;
+    hide;
+    broadcast rock_away;
+    broadcast scene_station;
+}
+
+when flag {
+    hide;
+}

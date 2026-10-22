@@ -1,0 +1,39 @@
+costume "Jamal" file "assets/RouterGuide.svg" center 55,49;
+// RouterGuide: deterministic route dispatcher
+when broadcast scene_intro {
+    hide;
+}
+
+when broadcast scene_route_choice {
+    show;
+    goto 0, 95;
+    set_size 60;
+    say "Three signs light up on the board: a hand mirror, a fork and a sneaker." for 2;
+    say "Click one sign — Captain Jamal only has time to walk a single route today." for 2;
+}
+
+when broadcast start_tour {
+    hide;
+    play_sound "Cheer";
+    if route == 1 {
+        broadcast scene_beauty_1;
+        wait_until done_beauty_1 == 1;
+        broadcast scene_beauty_2;
+        wait_until done_beauty_2 == 1;
+    } else if route == 2 {
+        broadcast scene_food_1;
+        wait_until done_food_1 == 1;
+        broadcast scene_food_2;
+        wait_until done_food_2 == 1;
+    } else if route == 3 {
+        broadcast scene_sports_1;
+        wait_until done_sports_1 == 1;
+        broadcast scene_sports_2;
+        wait_until done_sports_2 == 1;
+    }
+    broadcast scene_ending;
+}
+
+when flag {
+    hide;
+}

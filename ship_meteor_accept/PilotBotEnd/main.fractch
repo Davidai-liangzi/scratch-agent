@@ -1,0 +1,28 @@
+sound "Cheer" file "assets/Cheer.wav";
+costume "Retro Robot" file "assets/Retro_Robot.svg" center 55.04000000000008,85.55;
+// PilotBotEnd：航道清通后机长飘回来做收尾，复位全局状态并广播 game_end（全程不显示分数）
+
+// 开场就把机长藏起来，免得在前面几幕里挡住画面
+when broadcast scene_intro {
+    hide;
+}
+
+// 本幕：机长滑回画面左侧，说完两句收尾话后复位状态、收尾结束
+when broadcast scene_ending {
+    go_front;
+    set_size 60;
+    goto -200, 20;
+    show;
+    motion.glidesecstoxy(SECS: 1, X: -150, Y: 20);
+    say "航道清干净了，补给船正在靠港。" for 2.5;
+    play_sound "Cheer";
+    say "想再飞一趟的话，重新点一下绿旗就行。" for 2.5;
+    playing = 0;
+    score = 0;
+    hide;
+    broadcast game_end;
+}
+
+when flag {
+    hide;
+}

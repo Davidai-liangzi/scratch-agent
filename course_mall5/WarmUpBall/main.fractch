@@ -1,0 +1,11 @@
+costume "Basketball" file "assets/WarmUpBall.svg" center 23,23;
+// WarmUpBall: decoration for sports_1
+when broadcast scene_sports_1 {
+    show;
+    goto 0, 0;
+    set_size 50;
+}
+
+when flag {
+    hide;
+}

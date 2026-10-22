@@ -1,0 +1,11 @@
+costume "Glass Water" file "assets/ColdDrink.svg" center 39,48;
+// ColdDrink: decoration for food_2
+when broadcast scene_food_2 {
+    show;
+    goto 0, 0;
+    set_size 50;
+}
+
+when flag {
+    hide;
+}

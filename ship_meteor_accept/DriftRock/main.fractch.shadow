@@ -1,0 +1,42 @@
+costume "Rocks" file "assets/rocks.svg" center 59,15;
+// DriftRock: the asteroid-belt rock bobbing on the right side of the intro scene, and the looping space background music.
+
+use "music";
+
+var rock_on = 0;
+var going_up = 1;
+
+// On entering intro: appear on the right, float slowly up and down while looping the background music.
+when broadcast scene_intro {
+    show;
+    set_size 50;
+    set_x 130;
+    set_y 0;
+    going_up = 1;
+    rock_on = 1;
+    until rock_on == 0 {
+        music.playNoteForBeats(NOTE: 60, BEATS: 0.5);
+        wait 0.5;
+        if going_up == 1 {
+            change_y 8;
+            if motion.yposition() > 50 {
+                going_up = 0;
+            }
+        } else {
+            change_y -8;
+            if motion.yposition() < -50 {
+                going_up = 1;
+            }
+        }
+    }
+    hide;
+}
+
+// The captain was clicked: stop the drift loop and the music, clear the rock off screen.
+when broadcast rock_away {
+    rock_on = 0;
+}
+
+when flag {
+    hide;
+}

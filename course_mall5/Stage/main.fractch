@@ -1,0 +1,84 @@
+backdrop "Kenney Urban Restaurant" file "assets/bd_2.png" center 240,180;
+backdrop "Refrigerator" file "assets/bd_3.svg" center 240,180;
+backdrop "Playing Field" file "assets/bd_4.png" center 240,180;
+backdrop "Basketball 1" file "assets/bd_5.svg" center 240,180;
+/* 舞台由装配器生成：全局变量 + 背景 + 场景切换 */
+backdrop "bd_0" file "assets/bd_0.svg" center 240,180;
+backdrop "bd_1" file "assets/bd_1.svg" center 240,180;
+var score = 0;
+var route = "none";
+var playing = 1;
+var music_on = 1;
+var done_beauty_1 = 0;
+var hits_beauty_1 = 0;
+var done_beauty_2 = 0;
+var hits_beauty_2 = 0;
+var done_food_1 = 0;
+var hits_food_1 = 0;
+var done_food_2 = 0;
+var hits_food_2 = 0;
+var done_sports_1 = 0;
+var hits_sports_1 = 0;
+var done_sports_2 = 0;
+var hits_sports_2 = 0;
+
+when flag {
+    score = 0;
+    route = "none";
+    playing = 1;
+    music_on = 1;
+    done_beauty_1 = 0;
+    hits_beauty_1 = 0;
+    done_beauty_2 = 0;
+    hits_beauty_2 = 0;
+    done_food_1 = 0;
+    hits_food_1 = 0;
+    done_food_2 = 0;
+    hits_food_2 = 0;
+    done_sports_1 = 0;
+    hits_sports_1 = 0;
+    done_sports_2 = 0;
+    hits_sports_2 = 0;
+    backdrop "bd_0";
+    broadcast scene_intro;
+}
+
+when broadcast scene_intro {
+    backdrop "bd_0";
+}
+
+when broadcast scene_route_choice {
+    backdrop "bd_0";
+}
+
+when broadcast scene_beauty_1 {
+    backdrop "bd_1";
+}
+
+when broadcast scene_beauty_2 {
+    backdrop "bd_1";
+}
+
+when broadcast scene_food_1 {
+    backdrop "Kenney Urban Restaurant";
+}
+
+when broadcast scene_food_2 {
+    backdrop "Refrigerator";
+}
+
+when broadcast scene_sports_1 {
+    backdrop "Playing Field";
+}
+
+when broadcast scene_sports_2 {
+    backdrop "Basketball 1";
+}
+
+when broadcast scene_ending {
+    backdrop "bd_0";
+}
+
+when broadcast game_end {
+    stop all;
+}

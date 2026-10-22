@@ -1,0 +1,41 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Rocketship" file "assets/rocketship.svg" center 63,92;
+// HangarShip —— 机库里加满燃料的小飞船，被点中后点火起飞，冲进陨石最密的空域。
+var ready = 0;
+
+// 进入机库幕：把飞船停在机库中央，说明任务，然后等玩家点它。
+when broadcast scene_station {
+    hide;
+    ready = 1;
+    clear_effects;
+    set_size 60;
+    goto 0, -20;
+    show;
+    say "机库这艘小飞船燃料加满了，护盾也调好了。";
+    // 待机呼吸光，让玩家看出飞船可以点；一旦被点中立刻退出。
+    until ready == 0 {
+        change_effect brightness by 12;
+        wait 0.2;
+        change_effect brightness by -12;
+        wait 0.2;
+    }
+    clear_effects;
+    play_sound "Pop";
+    say "点火！抓稳了，我们冲进陨石最密的那片空域。" for 1;
+    motion.glidesecstoxy(SECS: 1, X: 0, Y: 130);
+    change_effect ghost by 60;
+    wait 0.4;
+    hide;
+    broadcast scene_minigame;
+}
+
+// 玩家点中飞船：解除待机状态，起飞流程由上面的脚本接着完成。
+when clicked {
+    if ready == 1 {
+        ready = 0;
+    }
+}
+
+when flag {
+    hide;
+}

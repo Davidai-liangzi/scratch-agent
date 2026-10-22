@@ -1,0 +1,56 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Rocks" file "assets/Rocks.svg" center 59,15;
+// Asteroid3 - the third and biggest space rock, diving a bit faster from the right side of the lane
+
+// helper: send this rock back to the top of the screen in a random lane
+def @respawn() {
+    set_y 140;
+    if random(1, 5) == 1 {
+        set_x -140;
+    } else if random(1, 5) == 2 {
+        set_x -70;
+    } else if random(1, 5) == 3 {
+        set_x 0;
+    } else if random(1, 5) == 4 {
+        set_x 70;
+    } else {
+        set_x 140;
+    }
+}
+
+// scene start: drift down from the top, and come down again from above every time it slips past the bottom
+when broadcast scene_minigame {
+    show;
+    set_size 60;
+    motion.setrotationstyle(STYLE: "left-right");
+    set_y 140;
+    set_x 120;
+    until playing == 0 {
+        change_y -4;
+        if motion.yposition() < -140 {
+            @respawn();
+            wait 0.6;
+        }
+        wait 0.06;
+    }
+    hide;
+}
+
+// clicked by the mouse: score a point, pop, then climb back up top for another pass; at 3 the lane is clear
+when clicked {
+    if playing == 1 {
+        score += 1;
+        play_sound "Pop";
+        if score >= 3 {
+            playing = 0;
+            hide;
+            broadcast scene_ending;
+        } else {
+            @respawn();
+        }
+    }
+}
+
+when flag {
+    hide;
+}

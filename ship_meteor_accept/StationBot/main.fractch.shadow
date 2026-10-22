@@ -1,0 +1,24 @@
+costume "Retro Robot" file "assets/retrobot.svg" center 55.04000000000008,85.55;
+// StationBot —— 机库的机械师，守在右下角指路，飞船飞走后补一句提示再躲到画面外。
+use "music";
+
+// 进入机库幕：在右下角出现，告诉玩家该点哪里，并用小段旋律给机库配乐。
+when broadcast scene_station {
+    clear_effects;
+    set_size 35;
+    goto 172, -112;
+    show;
+    say "点一下飞船，它就把你送进陨石最密的那片空域。";
+    // 等到飞船点火爬升（y 超过 60）为止，循环里有 wait，不会卡死。
+    until sprites["HangarShip"].y > 60 {
+        music.playNoteForBeats(NOTE: 64, BEATS: 0.4);
+        wait 0.4;
+    }
+    say "飞船出去了！三块陨石全点碎，航道就通了。" for 1.5;
+    motion.glidesecstoxy(SECS: 0.5, X: 200, Y: -112);
+    hide;
+}
+
+when flag {
+    hide;
+}
