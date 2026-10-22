@@ -485,6 +485,16 @@ def _emit_step(step_cb, kind, status, title, detail=""):
 GATE_MAX_ROUNDS = 3
 GATE_TIMEOUT_SECONDS = 300
 GATE_ASSERT_SECONDS = PLAYTEST_SECONDS
+PLAN_FILE = "plan.json"
+
+
+def save_plan(work_dir: str, plan: dict) -> str:
+    """把本轮真实设计文档落盘，供门控报告、契约与事后审计复用。"""
+    os.makedirs(work_dir, exist_ok=True)
+    path = os.path.join(work_dir, PLAN_FILE)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(plan, fh, ensure_ascii=False, indent=2)
+    return path
 
 
 def gate_report_path(output_sb3: str) -> str:
@@ -574,6 +584,7 @@ def enforce_gate(plan: dict, sb3_path: str, repair_fn=None,
                  max_rounds: int = GATE_MAX_ROUNDS,
                  timeout: float = GATE_TIMEOUT_SECONDS,
                  seconds: int = GATE_ASSERT_SECONDS,
+                 plan_path: str = "",
                  clock=time.monotonic, log=print) -> dict:
     """must 失败 → 带症状回炉；连续失败或超时 → 熔断并写结构化失败报告。
 
@@ -598,6 +609,7 @@ def enforce_gate(plan: dict, sb3_path: str, repair_fn=None,
             return {
                 "status": "passed", "reason": "", "rounds": rounds,
                 "must": [], "should": should, "slices": [],
+                "plan": os.path.abspath(plan_path) if plan_path else "",
                 "elapsed": round(clock() - started, 1),
             }
 
@@ -625,6 +637,7 @@ def enforce_gate(plan: dict, sb3_path: str, repair_fn=None,
         "must": last.get("must") or [],
         "should": last.get("should") or [],
         "slices": gate_slices(last.get("must") or []),
+        "plan": os.path.abspath(plan_path) if plan_path else "",
         "elapsed": round(clock() - started, 1),
         "max_rounds": max_rounds,
         "timeout": timeout,
@@ -775,6 +788,17 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
     ]
 
     work_dir, output_sb3 = project_paths(project_name)
+
+    # 真实设计文档落盘：门控报告、契约、事后审计共用同一份 plan。
+    # 非高质量模式没有 plan，顺手清掉同名工程里上一轮留下的旧文件。
+    plan_path = ""
+    if plan:
+        plan_path = save_plan(work_dir, plan)
+        print(f"🧭 设计文档已落盘：{os.path.join(os.path.basename(work_dir), PLAN_FILE)}")
+    else:
+        stale_plan = os.path.join(work_dir, PLAN_FILE)
+        if os.path.exists(stale_plan):
+            os.remove(stale_plan)
 
     while True:  # 每次成功打包后询问反馈，有反馈就再来一轮
         if stop_event is not None and stop_event.is_set():
@@ -941,7 +965,8 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                             work_dir, prompt, output_sb3,
                             user_images=user_images, stop_event=stop_event,
                             on_chunk=on_chunk, on_usage=on_usage)
-                    report = enforce_gate(plan, output_sb3, repair_fn)
+                    report = enforce_gate(plan, output_sb3, repair_fn,
+                                          plan_path=plan_path)
                     if report["status"] != "passed":
                         gate_ok = False
                         for item in report["must"]:
