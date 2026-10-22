@@ -789,16 +789,9 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
 
     work_dir, output_sb3 = project_paths(project_name)
 
-    # 真实设计文档落盘：门控报告、契约、事后审计共用同一份 plan。
-    # 非高质量模式没有 plan，顺手清掉同名工程里上一轮留下的旧文件。
-    plan_path = ""
-    if plan:
-        plan_path = save_plan(work_dir, plan)
-        print(f"🧭 设计文档已落盘：{os.path.join(os.path.basename(work_dir), PLAN_FILE)}")
-    else:
-        stale_plan = os.path.join(work_dir, PLAN_FILE)
-        if os.path.exists(stale_plan):
-            os.remove(stale_plan)
+    # 真实设计文档落盘：write_files 会重建工程目录，所以 plan 在文件写完后落盘。
+    plan_path = os.path.join(work_dir, PLAN_FILE) if plan else ""
+    plan_saved = False
 
     while True:  # 每次成功打包后询问反馈，有反馈就再来一轮
         if stop_event is not None and stop_event.is_set():
@@ -875,6 +868,12 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
             auto_fixed = inject_missing_sprite_costumes(work_dir)
             if auto_fixed:
                 print(f"🩹 这些目录有素材但没写造型/背景声明，已按文件名自动补上：{', '.join(auto_fixed)}")
+            # write_files 重建了目录，plan 必须在这里补写（每次尝试都写，重试时会再被清掉）
+            if plan:
+                save_plan(work_dir, plan)
+                if not plan_saved:
+                    print(f"🧭 设计文档已落盘：{plan_path}")
+                    plan_saved = True
             _emit_step(step_cb, "assets", "done", "素材已写入")
 
             # 3.5 打包前先做工程检查，命中问题就回炉，不必等 pack 报错
