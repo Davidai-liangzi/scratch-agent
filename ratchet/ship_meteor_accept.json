@@ -1,0 +1,469 @@
+{
+  "project": "ship_meteor_accept",
+  "sb3": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\ship_meteor_accept.sb3",
+  "sb3_sha256": "1a0ac8b58d6cb6476db1d69e71a41c01dfa824c18fed06bd15c6849451a169e3",
+  "created_at": "2026-10-22T18:51:06",
+  "contracts": {
+    "A": {
+      "slice": "A",
+      "label": "DriftRock",
+      "sb3": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\ship_meteor_accept.sb3",
+      "config": {
+        "frames": 150,
+        "targets": [
+          "DriftRock"
+        ],
+        "globals": [],
+        "broadcasts": [],
+        "actions": [
+          {
+            "frame": 2,
+            "type": "broadcast",
+            "name": "scene_intro"
+          },
+          {
+            "frame": 80,
+            "type": "broadcast",
+            "name": "rock_away"
+          }
+        ]
+      },
+      "frames": 150,
+      "action_frames": [
+        2,
+        80
+      ],
+      "targets": {
+        "DriftRock": [
+          {
+            "visible": true,
+            "costume": "Rocks",
+            "size": 100,
+            "running": true,
+            "vars": {
+              "rock_on": "1",
+              "going_up": "1"
+            }
+          },
+          {
+            "visible": true,
+            "costume": "Rocks",
+            "size": 100,
+            "running": true,
+            "vars": {
+              "rock_on": "0",
+              "going_up": "1"
+            }
+          },
+          {
+            "visible": false,
+            "costume": "Rocks",
+            "size": 100,
+            "running": false,
+            "vars": {
+              "rock_on": "0",
+              "going_up": "1"
+            }
+          }
+        ]
+      },
+      "globals": {},
+      "broadcasts": [],
+      "says": []
+    },
+    "B": {
+      "slice": "B",
+      "label": "HangarShip+StationBot",
+      "sb3": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\ship_meteor_accept.sb3",
+      "config": {
+        "frames": 180,
+        "targets": [
+          "HangarShip",
+          "StationBot"
+        ],
+        "globals": [],
+        "broadcasts": [
+          "scene_minigame"
+        ],
+        "actions": [
+          {
+            "frame": 2,
+            "type": "broadcast",
+            "name": "scene_station"
+          },
+          {
+            "frame": 40,
+            "type": "click",
+            "sprite": "HangarShip"
+          }
+        ]
+      },
+      "frames": 180,
+      "action_frames": [
+        2,
+        40
+      ],
+      "targets": {
+        "HangarShip": [
+          {
+            "visible": false,
+            "costume": "Rocketship",
+            "size": 100,
+            "running": false,
+            "vars": {
+              "ready": 0
+            }
+          },
+          {
+            "visible": true,
+            "costume": "Rocketship",
+            "size": 100,
+            "running": true,
+            "vars": {
+              "ready": "1"
+            }
+          },
+          {
+            "visible": true,
+            "costume": "Rocketship",
+            "size": 100,
+            "running": true,
+            "vars": {
+              "ready": "0"
+            }
+          },
+          {
+            "visible": false,
+            "costume": "Rocketship",
+            "size": 100,
+            "running": false,
+            "vars": {
+              "ready": "0"
+            }
+          }
+        ],
+        "StationBot": [
+          {
+            "visible": false,
+            "costume": "Retro Robot",
+            "size": 100,
+            "running": false,
+            "vars": {}
+          },
+          {
+            "visible": true,
+            "costume": "Retro Robot",
+            "size": 100,
+            "running": true,
+            "vars": {}
+          },
+          {
+            "visible": false,
+            "costume": "Retro Robot",
+            "size": 100,
+            "running": false,
+            "vars": {}
+          }
+        ]
+      },
+      "globals": {},
+      "broadcasts": [
+        "scene_minigame"
+      ],
+      "says": [
+        [
+          "StationBot",
+          "点一下飞船，它就把你送进陨石最密的那片空域。"
+        ],
+        [
+          "HangarShip",
+          "机库这艘小飞船燃料加满了，护盾也调好了。"
+        ],
+        [
+          "HangarShip",
+          "点火！抓稳了，我们冲进陨石最密的那片空域。"
+        ],
+        [
+          "StationBot",
+          "飞船出去了！三块陨石全点碎，航道就通了。"
+        ]
+      ]
+    },
+    "C": {
+      "slice": "C",
+      "label": "AsteroidGroup",
+      "sb3": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\ship_meteor_accept.sb3",
+      "config": {
+        "frames": 150,
+        "targets": [
+          "Asteroid1",
+          "Asteroid2",
+          "Asteroid3"
+        ],
+        "globals": [
+          "score",
+          "playing"
+        ],
+        "broadcasts": [
+          "scene_ending"
+        ],
+        "actions": [
+          {
+            "frame": 2,
+            "type": "broadcast",
+            "name": "scene_minigame"
+          },
+          {
+            "frame": 8,
+            "type": "setvar",
+            "name": "playing",
+            "value": 1
+          },
+          {
+            "frame": 45,
+            "type": "click",
+            "sprite": "Asteroid1"
+          },
+          {
+            "frame": 60,
+            "type": "click",
+            "sprite": "Asteroid2"
+          },
+          {
+            "frame": 75,
+            "type": "click",
+            "sprite": "Asteroid3"
+          }
+        ]
+      },
+      "frames": 150,
+      "action_frames": [
+        2,
+        8,
+        45,
+        60,
+        75
+      ],
+      "targets": {
+        "Asteroid1": [
+          {
+            "visible": false,
+            "costume": "Rocks",
+            "size": 100,
+            "running": false,
+            "vars": {}
+          },
+          {
+            "visible": true,
+            "costume": "Rocks",
+            "size": 100,
+            "running": true,
+            "vars": {}
+          },
+          {
+            "visible": false,
+            "costume": "Rocks",
+            "size": 100,
+            "running": false,
+            "vars": {}
+          }
+        ],
+        "Asteroid2": [
+          {
+            "visible": false,
+            "costume": "Rocks",
+            "size": 100,
+            "running": false,
+            "vars": {}
+          },
+          {
+            "visible": true,
+            "costume": "Rocks",
+            "size": 100,
+            "running": true,
+            "vars": {}
+          },
+          {
+            "visible": false,
+            "costume": "Rocks",
+            "size": 100,
+            "running": false,
+            "vars": {}
+          }
+        ],
+        "Asteroid3": [
+          {
+            "visible": false,
+            "costume": "Rocks",
+            "size": 100,
+            "running": false,
+            "vars": {}
+          },
+          {
+            "visible": true,
+            "costume": "Rocks",
+            "size": 100,
+            "running": true,
+            "vars": {}
+          },
+          {
+            "visible": false,
+            "costume": "Rocks",
+            "size": 100,
+            "running": false,
+            "vars": {}
+          }
+        ]
+      },
+      "globals": {
+        "score": [
+          "0",
+          1,
+          2,
+          3
+        ],
+        "playing": [
+          "0",
+          "1",
+          1,
+          "0"
+        ]
+      },
+      "broadcasts": [
+        "scene_ending"
+      ],
+      "says": []
+    }
+  },
+  "metrics": {
+    "slices": {
+      "Asteroid1": {
+        "leaf": false,
+        "duplication": 0.211,
+        "max_depth": 3,
+        "longest_script": 13,
+        "sends": [
+          "scene_ending"
+        ],
+        "writes": [
+          "playing",
+          "score"
+        ],
+        "senses": []
+      },
+      "Asteroid2": {
+        "leaf": false,
+        "duplication": 0.211,
+        "max_depth": 3,
+        "longest_script": 13,
+        "sends": [
+          "scene_ending"
+        ],
+        "writes": [
+          "playing",
+          "score"
+        ],
+        "senses": []
+      },
+      "Asteroid3": {
+        "leaf": false,
+        "duplication": 0.211,
+        "max_depth": 3,
+        "longest_script": 13,
+        "sends": [
+          "scene_ending"
+        ],
+        "writes": [
+          "playing",
+          "score"
+        ],
+        "senses": []
+      },
+      "DriftRock": {
+        "leaf": true,
+        "duplication": 0.0,
+        "max_depth": 3,
+        "longest_script": 10,
+        "sends": [],
+        "writes": [],
+        "senses": []
+      },
+      "HangarShip": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 2,
+        "longest_script": 11,
+        "sends": [
+          "scene_minigame"
+        ],
+        "writes": [],
+        "senses": []
+      },
+      "PilotBot": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 8,
+        "sends": [
+          "rock_away",
+          "scene_station"
+        ],
+        "writes": [
+          "score"
+        ],
+        "senses": []
+      },
+      "PilotBotEnd": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 13,
+        "sends": [
+          "game_end"
+        ],
+        "writes": [
+          "playing",
+          "score"
+        ],
+        "senses": []
+      },
+      "PlayerShip": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 4,
+        "longest_script": 17,
+        "sends": [],
+        "writes": [
+          "playing"
+        ],
+        "senses": []
+      },
+      "StationBot": {
+        "leaf": true,
+        "duplication": 0.0,
+        "max_depth": 2,
+        "longest_script": 10,
+        "sends": [],
+        "writes": [],
+        "senses": [
+          "HangarShip"
+        ]
+      }
+    },
+    "leaf_ratio": 0.2222,
+    "orphans": {
+      "sent_without_receiver": [],
+      "received_without_sender": []
+    },
+    "unread_globals": [],
+    "duplicate_savings": 116,
+    "warnings": {
+      "deep_nesting": [],
+      "long_scripts": [],
+      "leaf_with_sensing": [
+        "StationBot"
+      ]
+    }
+  },
+  "tolerance": 1e-09
+}
