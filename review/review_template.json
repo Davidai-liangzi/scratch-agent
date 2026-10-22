@@ -1,0 +1,39 @@
+{
+  "_note": "复制成 review/review_sample_XX.json 后填写。每个字段都必须有证据；不确定就写 unknown。",
+  "task_a_requirement_plan_consistency": {
+    "sample": "sample_01",
+    "task": "requirement_plan_consistency",
+    "consistent": null,
+    "confidence": "high|medium|low",
+    "conflicts": [
+      {
+        "constraint": "用户原文里的明确要求或禁止项",
+        "plan_element": "plan 里对应的字段/幕/胜利条件",
+        "why": "为什么两者冲突"
+      }
+    ],
+    "missing": [
+      "用户要求了、但 plan 里找不到对应字段的内容"
+    ],
+    "notes": "只写证据，不写审美评价"
+  },
+  "task_b_symptom_verification": {
+    "sample": "sample_01",
+    "task": "symptom_verification",
+    "answers": {
+      "green_flag_starts": {"value": "yes|no|unknown", "evidence": ""},
+      "visible_content": {"value": "yes|no|unknown", "evidence": ""},
+      "reaches_ending": {"value": "yes|no|unknown", "evidence": ""},
+      "score_progress": {"value": "yes|no|unknown", "evidence": ""},
+      "broadcast_pairs": {"value": "yes|no|unknown", "evidence": ""},
+      "clone_lifecycle": {"value": "yes|no|unknown", "evidence": ""},
+      "click_responses": {"value": "yes|no|unknown", "evidence": ""},
+      "runtime_errors": {"value": "yes|no|unknown", "evidence": ""}
+    },
+    "defect_verdict": "true_defect|false_positive|unknown",
+    "evidence": [
+      "运行命令、帧号、变量值、广播名、文件行号等"
+    ],
+    "matches_gate": "yes|no|unknown"
+  }
+}
