@@ -3836,7 +3836,38 @@ class MainWindow(QMainWindow):
             elif kind == "update_available":
                 self._prompt_update(*payload)
 
-    def _on_finished(self, has_sb3):
+    def _gate_rejection_info(self, sb3_path):
+        """读取门控失败报告；存在且为 rejected 时返回横幅摘要，否则 None。"""
+        if not sb3_path:
+            return None
+        report_path = os.path.splitext(sb3_path)[0] + ".gate.json"
+        if not os.path.exists(report_path):
+            return None
+        try:
+            with open(report_path, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            return None
+        if data.get("status") != "rejected":
+            return None
+        symptoms = [str(m.get("symptom") or "") for m in data.get("must") or []]
+        symptoms = [s for s in symptoms if s]
+        detail = "；".join(symptoms[:3])
+        if len(symptoms) > 3:
+            detail += f"；另有 {len(symptoms) - 3} 条"
+        return {
+            "title": "未通过自动质检（产物已保留）",
+            "detail": detail or "详见质检报告",
+            "report": report_path,
+        }
+
+    def _on_finished(self, payload):
+        if isinstance(payload, dict):
+            has_sb3 = bool(payload.get("has_sb3"))
+            gate = payload.get("gate") or None
+        else:
+            has_sb3 = bool(payload)
+            gate = None
         # 本轮结束：把「上下文使用率」挂到 agent 气泡右下角（usage_record 已先于 finished 派发）
         self._push_context_usage()
         self.mode = "idle"
@@ -3856,6 +3887,11 @@ class MainWindow(QMainWindow):
             self._push_js("window.appendSb3Card",
                           os.path.basename(self.current_output_sb3),
                           self.current_output_sb3)
+            if gate:
+                self._push_js("window.appendGateBanner",
+                              gate.get("title") or "",
+                              gate.get("detail") or "",
+                              gate.get("report") or "")
 
         # .sb3 + 图片：导入完成后接着打开替换面板
         pend = self._pending_replace
@@ -3878,7 +3914,11 @@ class MainWindow(QMainWindow):
             return
 
         if has_sb3:
-            if not self._finish_banner_shown:
+            if gate:
+                self._push_js("window.appendAi",
+                              "⚠️ 本轮产物未通过自动质检，已保留，可打开查看；详见上方黄色提示。")
+                self._finish_banner_shown = True
+            elif not self._finish_banner_shown:
                 self._push_js("window.appendAi", "🎉 完成，点击上方 📦 卡片打开项目；直接发消息可继续修改。")
                 self._finish_banner_shown = True
             else:
@@ -4269,6 +4309,15 @@ class MainWindow(QMainWindow):
                 script.LLM_CONFIG.get("provider") or "",
                 (script.LLM_CONFIG.get("models") or [""])[0], p, c)))
 
+        # 清掉上一轮残留的质检报告，避免本次通过却显示旧横幅
+        if self.current_output_sb3:
+            stale_report = os.path.splitext(self.current_output_sb3)[0] + ".gate.json"
+            try:
+                if os.path.exists(stale_report):
+                    os.remove(stale_report)
+            except OSError:
+                pass
+
         try:
             with contextlib.redirect_stdout(writer):
                 # 需求②：打包成功后立即结束本轮（feedback_fn 返回空串，不再阻塞等待）
@@ -4287,8 +4336,9 @@ class MainWindow(QMainWindow):
             traceback.print_exc()
             self._log_line(f"❌ 出错：{e}")
             has_sb3 = False
+        gate_info = self._gate_rejection_info(self.current_output_sb3) if has_sb3 else None
         flush_chunks()
-        self._ui_queue.put(("finished", has_sb3))
+        self._ui_queue.put(("finished", {"has_sb3": has_sb3, "gate": gate_info}))
 
     def _run_modify(self, prompt, work_dir, output_sb3, user_images=None):
         """单轮修改：调用 modify_project，成功即打包完成（需求②）。"""

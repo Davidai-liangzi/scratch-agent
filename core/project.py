@@ -52,6 +52,7 @@ from core.prompts import (
     OUTLINE_PROMPT,
     REPAIR_PROMPT,
     REPAIR_PROMPT_FULL,
+    REQUIREMENT_CHECK_PROMPT,
     build_backdrop_templates_block,
     build_outline_user_prompt,
     build_system_prompt,
@@ -634,11 +635,49 @@ def enforce_gate(plan: dict, sb3_path: str, repair_fn=None,
     return report
 
 
+def check_requirement_conflict(user_prompt: str, stop_event=None, on_usage=None) -> dict:
+    """生成前用一次 LLM 判断需求是否与硬性规则自相矛盾（隐藏提示词）。
+
+    只有「明确矛盾 + high 置信度」才拦截；调用失败 / 解析失败 / 低置信度
+    一律只提示、不拦截（fail-open），避免误伤正常需求。
+    返回 {} / {"warn": ...} / {"block": True, "reason": ...}。
+    """
+    messages = [
+        {"role": "system", "content": REQUIREMENT_CHECK_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
+    raw = ask_llm(messages, stop_event=stop_event, on_usage=on_usage)
+    if not raw:
+        return {"warn": "需求预检未完成（模型无响应），已按原需求继续生成。"}
+    try:
+        data = parse_spec(raw)
+    except ValueError:
+        return {"warn": "需求预检结果无法解析，已按原需求继续生成。"}
+    if not isinstance(data, dict) or not data.get("contradictory"):
+        return {}
+    reason = str(data.get("reason") or "").strip()[:120] or "需求与系统规则冲突"
+    confidence = str(data.get("confidence") or "low").strip().lower()
+    if confidence == "high":
+        return {"block": True, "reason": reason}
+    return {"warn": f"需求可能有冲突：{reason}（低置信度，继续生成）。"}
+
+
 def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str = None,
                           user_images=None, stop_event=None, step_cb=None, on_chunk=None,
                           on_usage=None):
     if feedback_fn is None:
         feedback_fn = lambda: input("🔧 如果生成的游戏还有问题，请描述（例如：某个角色不动 / 造型不对 / 路线走不通），直接回车结束：")
+
+    # 需求预检（隐藏提示词，开生成前只调一次）：明确矛盾 → 拦截；拿不准 → 只提示
+    verdict = check_requirement_conflict(user_prompt, stop_event=stop_event, on_usage=on_usage)
+    if verdict.get("block"):
+        reason = verdict.get("reason") or "需求与系统规则冲突"
+        print(f"❌ 需求与系统规则冲突：{reason}")
+        print("   请修改需求后重试，例如把「不要结算」改成「满 3 分后显示胜利画面」。")
+        _emit_step(step_cb, "request", "fail", "需求预检未通过", reason)
+        return False
+    if verdict.get("warn"):
+        print(f"⚠️ {verdict['warn']}")
 
     # 首次运行时同步素材库清单（失败不影响主流程，会退化为自绘造型）
     if not assets_lib.manifest_ready():
@@ -892,6 +931,8 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                             print("")
                 # 批次 2：硬门控（must/should 分级 + 熔断 + 结构化失败报告）。
                 # 追加在旧自检之后，不替换旧逻辑；只有 must 失败才会回炉。
+                # 按产品决定：门控失败仍然交付产物，但明确标记「未通过质检」。
+                gate_ok = True
                 if quality_mode() == "premium" and plan:
                     repair_fn = None
                     if not plan.get("routes"):
@@ -902,14 +943,15 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                             on_chunk=on_chunk, on_usage=on_usage)
                     report = enforce_gate(plan, output_sb3, repair_fn)
                     if report["status"] != "passed":
+                        gate_ok = False
                         for item in report["must"]:
                             print(f"  - [{item['id']}] {item['symptom']}"
                                   f"（{_gate_evidence_text(item.get('evidence') or {})}）")
                         print(f"🧾 结构化失败报告：{gate_report_path(output_sb3)}")
-                        _emit_step(step_cb, "verify", "fail", "硬门控未通过",
+                        print("⚠️ 未通过自动质检：产物已保留，可打开查看，但不要当作已完成。")
+                        _emit_step(step_cb, "verify", "fail", "未通过质检（产物已保留）",
                                    f"{len(report['must'])} 条 must")
-                        return False
-                    if report["should"]:
+                    elif report["should"]:
                         print("ℹ️ should 级问题（只记录，不阻断）："
                               + "；".join(f"[{s['id']}] {s['symptom']}"
                                           for s in report["should"][:3]))
@@ -920,7 +962,8 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                         raise GenerationStopped()
                     feedback = feedback_fn().strip()
                     if not feedback:
-                        _emit_step(step_cb, "done", "done", "生成完成")
+                        _emit_step(step_cb, "done", "done",
+                                   "生成完成" if gate_ok else "已交付（未通过质检）")
                         return True
                     if modify_project(work_dir, feedback, output_sb3,
                                       user_images=user_images, stop_event=stop_event,

@@ -221,6 +221,23 @@
   .sb3-card .sb3-open { margin-left: auto; color: var(--step-detail); font-size: 12px; }
   .sb3-card:hover .sb3-open { color: #0d6efd; }
 
+  /* 门控未通过横幅：产物仍可打开，但明确标记「未通过质检」 */
+  .gate-banner {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border: 1px solid #d9a406;
+    border-left: 4px solid #f0ad4e;
+    border-radius: 10px;
+    background: rgba(240,173,78,0.14);
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .gate-banner .gate-title { font-weight: 700; color: #a06a00; }
+  .gate-banner .gate-detail { margin-top: 4px; color: var(--text); word-break: break-word; }
+  .gate-banner .gate-report {
+    margin-top: 4px; color: var(--step-detail); font-size: 12px; word-break: break-all;
+  }
+
   /* 用户消息 meta（P0 步骤③）：时间 + 复制 + 修改 */
   .msg-meta {
     display: flex;
@@ -580,6 +597,36 @@
       if (bridge && bridge.openSb3) { bridge.openSb3(path); }
     };
     bubble.appendChild(card);
+    wrap.appendChild(bubble);
+    document.getElementById('messages').appendChild(wrap);
+    scrollBottom();
+  };
+
+  // —— 门控未通过横幅：产物仍可打开，但明确标记「未通过质检」——
+  window.appendGateBanner = function (title, detail, reportPath) {
+    var wrap = document.createElement('div');
+    wrap.className = 'msg ai';
+    var bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    var box = document.createElement('div');
+    box.className = 'gate-banner';
+    var t = document.createElement('div');
+    t.className = 'gate-title';
+    t.textContent = '⚠️ ' + (title || '未通过自动质检（产物已保留）');
+    box.appendChild(t);
+    if (detail) {
+      var d = document.createElement('div');
+      d.className = 'gate-detail';
+      d.textContent = detail;
+      box.appendChild(d);
+    }
+    if (reportPath) {
+      var r = document.createElement('div');
+      r.className = 'gate-report';
+      r.textContent = '质检报告：' + reportPath;
+      box.appendChild(r);
+    }
+    bubble.appendChild(box);
     wrap.appendChild(bubble);
     document.getElementById('messages').appendChild(wrap);
     scrollBottom();
