@@ -2,12 +2,14 @@ import json
 import os
 import re
 import shutil
+import time
 
 from core import (
     assembler,
     assets_lib,
     casting,
     critic,
+    gate,
     layout_check,
     planner,
     playtest,
@@ -476,6 +478,162 @@ def _emit_step(step_cb, kind, status, title, detail=""):
         pass
 
 
+# ---------------- 批次 2：硬门控回炉循环与熔断 ----------------
+# 阈值由人工确定，不由模型决定：连续 GATE_MAX_ROUNDS 轮 must 仍失败就停止重试；
+# 墙钟超过 GATE_TIMEOUT_SECONDS 也不再开始下一轮。must 不通过才回炉，should 只记录。
+GATE_MAX_ROUNDS = 3
+GATE_TIMEOUT_SECONDS = 300
+GATE_ASSERT_SECONDS = PLAYTEST_SECONDS
+
+
+def gate_report_path(output_sb3: str) -> str:
+    """失败报告固定落在 .sb3 旁边，供人工和后续批次消费。"""
+    return os.path.splitext(os.path.abspath(output_sb3))[0] + ".gate.json"
+
+
+def _gate_reports(plan: dict, sb3_path: str, seconds: int) -> list:
+    """单线项目跑 1 次；多路线项目逐条强制路线各跑 1 次。"""
+    routes = [0] + list(range(1, len(plan.get("routes") or []) + 1))
+    return [gate.run_and_check(plan, sb3_path, seconds, route) for route in routes]
+
+
+def _merge_gate(reports: list) -> tuple:
+    must, should = [], []
+    for rep in reports:
+        for item in rep.get("must") or []:
+            must.append({**item, "route": rep.get("route")})
+        for item in rep.get("should") or []:
+            should.append({**item, "route": rep.get("route")})
+    return must, should
+
+
+def gate_slices(must: list) -> list:
+    """从症状推导涉及切片：角色名、广播名、路线（去重保序）。"""
+    slices = []
+
+    def add_broadcast(name):
+        label = "广播:" + str(name)
+        if label not in slices:
+            slices.append(label)
+
+    for item in must:
+        evidence = item.get("evidence") or {}
+        for name in evidence.get("targets") or []:
+            if str(name) not in slices:
+                slices.append(str(name))
+        for name in evidence.get("messages") or []:
+            add_broadcast(name)
+        for name in evidence.get("missing") or []:
+            add_broadcast(name)
+        if evidence.get("route"):
+            label = f"路线{evidence['route']}"
+            if label not in slices:
+                slices.append(label)
+    return slices
+
+
+def _gate_evidence_text(evidence: dict) -> str:
+    parts = []
+    for key, value in (evidence or {}).items():
+        if key == "route":
+            continue
+        if isinstance(value, list):
+            value = ",".join(str(v) for v in value[:5])
+        parts.append(f"{key}={value}")
+    return "，".join(parts)
+
+
+def format_gate_feedback(must: list) -> str:
+    """把 must 失败翻译成带症状证据的修复指令，而不是「生成失败」四个字。"""
+    lines = [
+        "【硬门控未通过】下面这些问题由无头 VM 实测得出，必须修复后重新打包。",
+        "只改与这些问题相关的角色/文件，不要重写无关部分：",
+    ]
+    for item in must:
+        detail = _gate_evidence_text(item.get("evidence") or {})
+        suffix = f"（{detail}）" if detail else ""
+        route = item.get("route")
+        prefix = f"路线 {route}：" if route else ""
+        lines.append(f"- {prefix}[{item.get('id')}] {item.get('symptom')}{suffix}")
+    lines.append("修复后会用同一组断言重新验证；未通过不会交付。")
+    return "\n".join(lines)
+
+
+def _write_gate_report(output_sb3: str, report: dict) -> str:
+    path = gate_report_path(output_sb3)
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(report, fh, ensure_ascii=False, indent=2)
+    except OSError as exc:
+        print(f"⚠️ 结构化失败报告写入失败：{exc}")
+    return path
+
+
+def enforce_gate(plan: dict, sb3_path: str, repair_fn=None,
+                 max_rounds: int = GATE_MAX_ROUNDS,
+                 timeout: float = GATE_TIMEOUT_SECONDS,
+                 seconds: int = GATE_ASSERT_SECONDS,
+                 clock=time.monotonic, log=print) -> dict:
+    """must 失败 → 带症状回炉；连续失败或超时 → 熔断并写结构化失败报告。
+
+    repair_fn(feedback) 负责修复并重新打包，成功返回 True。
+    repair_fn 为 None 表示禁止自动修复（例如多路线项目的控制流由装配器生成）。
+    """
+    started = clock()
+    rounds = []
+    reason = ""
+    for round_no in range(1, max_rounds + 1):
+        reports = _gate_reports(plan, sb3_path, seconds)
+        must, should = _merge_gate(reports)
+        rounds.append({
+            "round": round_no,
+            "must": must,
+            "should": should,
+            "frames": next((rep.get("frames") for rep in reports
+                            if rep.get("frames")), None),
+        })
+        if not must:
+            log(f"✅ 硬门控通过（{len(rounds)} 轮，{len(should)} 条 should）")
+            return {
+                "status": "passed", "reason": "", "rounds": rounds,
+                "must": [], "should": should, "slices": [],
+                "elapsed": round(clock() - started, 1),
+            }
+
+        if clock() - started > timeout:
+            reason = "timeout"
+            break
+        if round_no >= max_rounds:
+            reason = "max_rounds"
+            break
+        if repair_fn is None:
+            reason = "repair_disabled"
+            break
+
+        log(f"⚠️ 硬门控未通过（第 {round_no}/{max_rounds} 轮，{len(must)} 条 must），"
+            f"带症状回炉…")
+        if not repair_fn(format_gate_feedback(must)):
+            reason = "repair_failed"
+            break
+
+    last = rounds[-1] if rounds else {"must": [], "should": []}
+    report = {
+        "status": "rejected",
+        "reason": reason,
+        "rounds": rounds,
+        "must": last.get("must") or [],
+        "should": last.get("should") or [],
+        "slices": gate_slices(last.get("must") or []),
+        "elapsed": round(clock() - started, 1),
+        "max_rounds": max_rounds,
+        "timeout": timeout,
+    }
+    path = _write_gate_report(sb3_path, report)
+    log(f"⛔ 门控熔断（{reason}）：{len(report['must'])} 条 must 未通过，"
+        f"涉及切片 {report['slices'] or '整体'}；报告：{path}")
+    return report
+
+
 def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str = None,
                           user_images=None, stop_event=None, step_cb=None, on_chunk=None,
                           on_usage=None):
@@ -732,6 +890,30 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                             print("🔍 修复后重新验证：")
                             print(summarize_runtime(result))
                             print("")
+                # 批次 2：硬门控（must/should 分级 + 熔断 + 结构化失败报告）。
+                # 追加在旧自检之后，不替换旧逻辑；只有 must 失败才会回炉。
+                if quality_mode() == "premium" and plan:
+                    repair_fn = None
+                    if not plan.get("routes"):
+                        # 多路线项目的控制流由装配器生成，让 LLM 改代码只会破坏状态机
+                        repair_fn = lambda prompt: modify_project(
+                            work_dir, prompt, output_sb3,
+                            user_images=user_images, stop_event=stop_event,
+                            on_chunk=on_chunk, on_usage=on_usage)
+                    report = enforce_gate(plan, output_sb3, repair_fn)
+                    if report["status"] != "passed":
+                        for item in report["must"]:
+                            print(f"  - [{item['id']}] {item['symptom']}"
+                                  f"（{_gate_evidence_text(item.get('evidence') or {})}）")
+                        print(f"🧾 结构化失败报告：{gate_report_path(output_sb3)}")
+                        _emit_step(step_cb, "verify", "fail", "硬门控未通过",
+                                   f"{len(report['must'])} 条 must")
+                        return False
+                    if report["should"]:
+                        print("ℹ️ should 级问题（只记录，不阻断）："
+                              + "；".join(f"[{s['id']}] {s['symptom']}"
+                                          for s in report["should"][:3]))
+
                 # 反馈环：增量修改现有 fractch 文件，而不是重新生成整个项目
                 while True:
                     if stop_event is not None and stop_event.is_set():
