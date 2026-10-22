@@ -1,0 +1,312 @@
+{
+  "project": "course_mall5",
+  "sb3": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\course_mall5.sb3",
+  "sb3_sha256": "0240c6ce06247852a756b548f9ecdfb150172aded093878795c6e45c3d9953a3",
+  "created_at": "2026-10-22T19:18:52",
+  "contracts": {},
+  "metrics": {
+    "slices": {
+      "BeautyClerk": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 9,
+        "sends": [],
+        "writes": [
+          "done_beauty_1",
+          "hits_beauty_1"
+        ],
+        "senses": []
+      },
+      "BeautySample": {
+        "leaf": true,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 4,
+        "sends": [],
+        "writes": [],
+        "senses": []
+      },
+      "ChoiceHat": {
+        "leaf": false,
+        "duplication": 0.381,
+        "max_depth": 3,
+        "longest_script": 8,
+        "sends": [],
+        "writes": [
+          "done_beauty_2",
+          "hits_beauty_2"
+        ],
+        "senses": []
+      },
+      "ChoiceScarf": {
+        "leaf": false,
+        "duplication": 0.381,
+        "max_depth": 3,
+        "longest_script": 8,
+        "sends": [],
+        "writes": [
+          "done_beauty_2",
+          "hits_beauty_2"
+        ],
+        "senses": []
+      },
+      "CoachRef": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 9,
+        "sends": [],
+        "writes": [
+          "done_sports_1",
+          "hits_sports_1"
+        ],
+        "senses": []
+      },
+      "ColdDrink": {
+        "leaf": true,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 4,
+        "sends": [],
+        "writes": [],
+        "senses": []
+      },
+      "DrillBall": {
+        "leaf": false,
+        "duplication": 0.381,
+        "max_depth": 3,
+        "longest_script": 8,
+        "sends": [],
+        "writes": [
+          "done_sports_2",
+          "hits_sports_2"
+        ],
+        "senses": []
+      },
+      "DrillCoach": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 9,
+        "sends": [
+          "scene_sports_2_play"
+        ],
+        "writes": [
+          "done_sports_2",
+          "hits_sports_2"
+        ],
+        "senses": []
+      },
+      "DrillTramp": {
+        "leaf": false,
+        "duplication": 0.381,
+        "max_depth": 3,
+        "longest_script": 8,
+        "sends": [],
+        "writes": [
+          "done_sports_2",
+          "hits_sports_2"
+        ],
+        "senses": []
+      },
+      "EndingGuide": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 7,
+        "sends": [
+          "game_end"
+        ],
+        "writes": [],
+        "senses": []
+      },
+      "FoodChef": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 9,
+        "sends": [
+          "scene_food_1_play"
+        ],
+        "writes": [
+          "done_food_1",
+          "hits_food_1"
+        ],
+        "senses": []
+      },
+      "FridgeWaiter": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 3,
+        "longest_script": 8,
+        "sends": [],
+        "writes": [
+          "done_food_2",
+          "hits_food_2"
+        ],
+        "senses": []
+      },
+      "IntroGuide": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 7,
+        "sends": [
+          "scene_route_choice"
+        ],
+        "writes": [],
+        "senses": []
+      },
+      "LobbyShopper": {
+        "leaf": true,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 4,
+        "sends": [],
+        "writes": [],
+        "senses": []
+      },
+      "MusicBox": {
+        "leaf": true,
+        "duplication": 0.0,
+        "max_depth": 2,
+        "longest_script": 9,
+        "sends": [],
+        "writes": [],
+        "senses": []
+      },
+      "OptionBeauty": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 2,
+        "longest_script": 5,
+        "sends": [
+          "start_tour"
+        ],
+        "writes": [
+          "route"
+        ],
+        "senses": []
+      },
+      "OptionFood": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 2,
+        "longest_script": 5,
+        "sends": [
+          "start_tour"
+        ],
+        "writes": [
+          "route"
+        ],
+        "senses": []
+      },
+      "OptionSports": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 2,
+        "longest_script": 5,
+        "sends": [
+          "start_tour"
+        ],
+        "writes": [
+          "route"
+        ],
+        "senses": []
+      },
+      "PlateCake": {
+        "leaf": false,
+        "duplication": 0.381,
+        "max_depth": 3,
+        "longest_script": 8,
+        "sends": [],
+        "writes": [
+          "done_food_1",
+          "hits_food_1"
+        ],
+        "senses": []
+      },
+      "PlateEgg": {
+        "leaf": false,
+        "duplication": 0.381,
+        "max_depth": 3,
+        "longest_script": 8,
+        "sends": [],
+        "writes": [
+          "done_food_1",
+          "hits_food_1"
+        ],
+        "senses": []
+      },
+      "PrizeBag": {
+        "leaf": true,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 4,
+        "sends": [],
+        "writes": [],
+        "senses": []
+      },
+      "RouterGuide": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 2,
+        "longest_script": 9,
+        "sends": [
+          "scene_beauty_1",
+          "scene_beauty_2",
+          "scene_ending",
+          "scene_food_1",
+          "scene_food_2",
+          "scene_sports_1",
+          "scene_sports_2"
+        ],
+        "writes": [],
+        "senses": []
+      },
+      "StyleClerk": {
+        "leaf": false,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 9,
+        "sends": [
+          "scene_beauty_2_play"
+        ],
+        "writes": [
+          "done_beauty_2",
+          "hits_beauty_2"
+        ],
+        "senses": []
+      },
+      "WarmUpBall": {
+        "leaf": true,
+        "duplication": 0.0,
+        "max_depth": 1,
+        "longest_script": 4,
+        "sends": [],
+        "writes": [],
+        "senses": []
+      }
+    },
+    "leaf_ratio": 0.25,
+    "orphans": {
+      "sent_without_receiver": [],
+      "received_without_sender": []
+    },
+    "unread_globals": [
+      "score",
+      "playing",
+      "music_on",
+      "hits_beauty_1",
+      "hits_sports_1"
+    ],
+    "duplicate_savings": 84,
+    "warnings": {
+      "deep_nesting": [],
+      "long_scripts": [],
+      "leaf_with_sensing": []
+    }
+  },
+  "tolerance": 1e-09
+}

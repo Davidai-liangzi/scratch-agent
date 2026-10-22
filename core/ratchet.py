@@ -188,12 +188,15 @@ def main():
     parser.add_argument("--baseline", required=True)
     parser.add_argument("--contract-dir", default=os.path.join("build", "contracts_baseline"))
     parser.add_argument("--slices", default=",".join(DEFAULT_SLICES))
+    parser.add_argument("--no-contracts", action="store_true",
+                        help="只冻结/检查指标（工程还没有契约时使用）")
     args = parser.parse_args()
 
     if args.mode == "freeze":
         try:
-            data = freeze(args.sb3, args.baseline, args.contract_dir,
-                          tuple(s.strip() for s in args.slices.split(",") if s.strip()))
+            slices = () if args.no_contracts else tuple(
+                s.strip() for s in args.slices.split(",") if s.strip())
+            data = freeze(args.sb3, args.baseline, args.contract_dir, slices)
         except RuntimeError as exc:
             print(f"❌ 冻结失败：{exc}")
             sys.exit(1)

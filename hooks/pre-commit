@@ -1,0 +1,4 @@
+#!/bin/sh
+# 安装：把本文件复制到 .git/hooks/pre-commit
+# 只在 course_mall5 / ship_meteor_accept 源码被暂存时运行棘轮检查。
+exec python tools/precommit_ratchet.py
