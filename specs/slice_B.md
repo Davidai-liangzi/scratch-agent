@@ -42,6 +42,12 @@
 - 仅在 `HangarShip/main.fractch` 与 `StationBot/main.fractch` 内新增自定义块并调整脚本结构。
 - 不得修改其他角色的文件。
 
+## 语法约束（fractch）
+
+- 自定义块必须写成：`def @pulse_once() { ... }`（**必须有 `def`**）。
+- 调用写成：`@pulse_once();`。
+- 不要写成 `@pulse_once() { ... }`，否则会报 `call to undefined custom block` 并导致整轮回滚。
+
 ## 验收
 
 1. 契约 B 与重构前零差异（`build/contracts_baseline/B.json`）。
