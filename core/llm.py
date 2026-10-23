@@ -6,6 +6,7 @@ import re
 import requests
 
 from core.assets import user_image_variant
+from core import config as _config
 from core.config import LLM_CONFIG, REQUEST_RETRIES, REQUEST_TIMEOUT
 
 # 图片扩展名 → MIME（视觉接口只认这几种；svg 等在 GUI 侧已统一转 PNG）
@@ -352,7 +353,8 @@ def _emit_usage(on_usage, usage) -> None:
         pass
 
 
-def ask_llm(messages: list, stop_event=None, on_chunk=None, on_usage=None):
+def ask_llm(messages: list, stop_event=None, on_chunk=None, on_usage=None,
+            provider: str = None, tier: str = None):
     """请求大模型，返回生成的文本；失败时返回 None。
 
     按候选模型列表自动回退：主模型不存在/下线时切下一个候选（旧别名），
@@ -360,14 +362,27 @@ def ask_llm(messages: list, stop_event=None, on_chunk=None, on_usage=None):
     用户主动停止时抛 GenerationStopped。on_chunk 非空时逐片段回调（打字机）。
     on_usage 非空时回调 (prompt_tokens, completion_tokens)：优先用接口返回的 usage，
     拿不到就用字符数粗估（估算值仅供额度面板参考）。
+
+    provider/tier（批次 11 方案二）：按调用指定厂商与档位——异构忠实性审查者
+    必须与生成器不同厂商（红线），而全局 LLM_CONFIG 是生成器在用配置，不能改。
     """
     cfg = LLM_CONFIG
-    url = cfg["base_url"].rstrip("/") + "/chat/completions"
+    if provider:
+        tier = tier or cfg.get("tier") or "fast"
+        base_url, models = _config.resolve_models(provider, tier)
+        api_key = _config.key_for(provider)
+        if not base_url or not api_key or not models:
+            print(f"⚠️ 异构厂商 {provider} 未配置地址/Key/模型，跳过该调用")
+            return None
+    else:
+        base_url = cfg["base_url"]
+        api_key = cfg["api_key"]
+        models = cfg.get("models") or []
+    url = base_url.rstrip("/") + "/chat/completions"
     headers = {
-        "Authorization": f"Bearer {cfg['api_key']}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    models = cfg.get("models") or []
 
     for model in models:
         if stop_event is not None and stop_event.is_set():

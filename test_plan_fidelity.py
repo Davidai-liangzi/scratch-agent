@@ -92,6 +92,52 @@ def enforce_cases():
     yield ("回炉-禁用修复直接回退", out is None and rep["rounds"] == 1)
 
 
+# ---- 异构审查者离线状态机（mock ask_fn 零网络；厂商守卫/解析/差异卡）----
+
+from core import config as _cfg
+from core import fidelity_auditor
+
+
+def auditor_cases():
+    saved = dict(_cfg.LLM_CONFIG.get("api_keys") or {})
+    _cfg.LLM_CONFIG.setdefault("api_keys", {})["openai"] = "test-key"
+    try:
+        def ask_ok(messages, **kw):
+            return ('```json\n[{"element":"按空格收集宝石","quote":"interaction 空格收集",'
+                    '"kind":"invention","note":"需求未提收集"}]\n```')
+        a = fidelity_auditor.audit_plan("走到宝藏显示胜利", {}, provider="openai", ask_fn=ask_ok)
+        yield ("审查-围栏JSON解析", len(a["items"]) == 1
+               and a["items"][0]["element"] == "按空格收集宝石" and not a.get("error"))
+
+        def ask_empty(messages, **kw):
+            return "[]"
+        a = fidelity_auditor.audit_plan("p", {}, provider="openai", ask_fn=ask_empty)
+        yield ("审查-空清单", a["items"] == [] and not a.get("error"))
+
+        def ask_junk(messages, **kw):
+            return "抱歉，我无法完成审查。"
+        a = fidelity_auditor.audit_plan("p", {}, provider="openai", ask_fn=ask_junk)
+        yield ("审查-不可解析降级", a.get("error") == "unparseable_response" and a["items"] == [])
+
+        def ask_boom(messages, **kw):
+            raise RuntimeError("网络断开")
+        a = fidelity_auditor.audit_plan("p", {}, provider="openai", ask_fn=ask_boom)
+        yield ("审查-调用异常不抛出", bool(a.get("error")) and a["items"] == [])
+
+        a = fidelity_auditor.audit_plan("p", {}, provider="deepseek", ask_fn=ask_ok)
+        yield ("审查-同厂商拒绝执行", a.get("skipped") == "same_as_generator")
+
+        a = fidelity_auditor.audit_plan("p", {}, provider="moonshot", ask_fn=ask_ok)
+        yield ("审查-无Key静默跳过", a.get("skipped") == "no_key")
+
+        card = fidelity_auditor.format_diff_card(
+            {"provider": "openai", "items": [{"element": "E", "quote": "Q",
+                                              "kind": "invention", "note": "N"}]}, "需求")
+        yield ("审查-差异卡含条目", "| 1 | E | invention | Q | N |" in card)
+    finally:
+        _cfg.LLM_CONFIG["api_keys"] = saved
+
+
 def main():
     failed = 0
     for name, prompt, plan, want_must, want_should in CASES:
@@ -110,6 +156,11 @@ def main():
                 print(f"    should: {s['id']} {s['detail']}")
     total = len(CASES)
     for name, ok in enforce_cases():
+        total += 1
+        print(f"[{'PASS' if ok else 'FAIL'}] {name}")
+        if not ok:
+            failed += 1
+    for name, ok in auditor_cases():
         total += 1
         print(f"[{'PASS' if ok else 'FAIL'}] {name}")
         if not ok:

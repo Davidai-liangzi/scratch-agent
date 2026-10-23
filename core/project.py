@@ -9,6 +9,7 @@ from core import (
     assets_lib,
     casting,
     critic,
+    fidelity_auditor,
     gate,
     layout_check,
     plan_fidelity,
@@ -811,6 +812,22 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                     json.dump(fid_report, fh, ensure_ascii=False, indent=2)
             except OSError:
                 pass
+            if plan is not None and fid_report.get("verdict") == "passed":
+                # 批次 11 方案二：确定性核对放行后才跑异构审查者（只读差异卡，
+                # 供人工确认；厂商未配 Key 或失败时静默跳过，不影响主流程）。
+                try:
+                    audit = fidelity_auditor.audit_plan(user_prompt, plan,
+                                                        stop_event=stop_event,
+                                                        on_usage=on_usage)
+                    if not audit.get("skipped"):
+                        with open(os.path.join(work_dir, "plan_fidelity_review.md"), "w",
+                                  encoding="utf-8") as fh:
+                            fh.write(fidelity_auditor.format_diff_card(audit, user_prompt))
+                        if audit.get("items"):
+                            print(f"🔍 异构忠实性审查：{len(audit['items'])} 条可疑项"
+                                  f"（{audit['provider']}，详见 plan_fidelity_review.md，需人工确认）")
+                except Exception as exc:  # 观察期：审查失败不阻断构建
+                    print(f"⚠️ 异构忠实性审查跳过：{exc}")
             if plan is not None:
                 try:
                     if plan.get("routes"):
