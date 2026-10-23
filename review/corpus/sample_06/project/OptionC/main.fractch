@@ -1,0 +1,33 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Glass Water" file "assets/glass_water.svg" center 39,48;
+costume "Potion" file "assets/potion.svg" center 15,21;
+// OptionC：答题大厅右上角的 C 选项按钮（药水瓶），出题时被点击就提交答案 C
+
+// 开场先把自己藏起来，等答题幕再出现
+when broadcast scene_intro {
+    hide;
+}
+
+// 答题幕开始，站到大厅右上角
+when broadcast scene_quiz {
+    goto 140, 105;
+    set_size 45;
+    clear_effects;
+    show;
+}
+
+// 被点击时提交 C 答案，并短暂变暗作为按下的反馈
+when clicked {
+    if sprites["QuizMaster"].vars["answering"] == 1 {
+        broadcast answer_c;
+        play_sound "Pop";
+        set_effect ghost to 60;
+        wait 0.3;
+        clear_effects;
+    }
+}
+
+// 三题答完进入结束幕，把按钮收起来
+when broadcast scene_ending {
+    hide;
+}

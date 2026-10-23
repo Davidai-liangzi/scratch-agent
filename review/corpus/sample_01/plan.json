@@ -1,0 +1,163 @@
+{
+  "title": "篮球馆彩球大作战",
+  "theme": "运动 · 篮球馆里的点气球小游戏",
+  "player_verb": "用鼠标点击从球场地板往上升的彩色气球，点破一个得一分。",
+  "win": {
+    "type": "score",
+    "value": 5,
+    "text": "在 30 秒内用鼠标点破 5 个飘上来的彩球"
+  },
+  "lose": {
+    "type": "time",
+    "value": 0,
+    "text": "30 秒倒计时走完时得分还不足 5 分，教练会摇头，可以点绿旗重来"
+  },
+  "backdrops": [
+    {
+      "name": "Basketball 1",
+      "kind": "official",
+      "asset": "@official:Basketball 1"
+    },
+    {
+      "name": "Basketball 2",
+      "kind": "official",
+      "asset": "@official:Basketball 2"
+    }
+  ],
+  "globals": [
+    {
+      "name": "score",
+      "init": "0"
+    },
+    {
+      "name": "time_left",
+      "init": "30"
+    }
+  ],
+  "router_sprite": "CoachPlay",
+  "routes": [],
+  "beats": [
+    {
+      "id": "intro",
+      "type": "intro",
+      "goal": "教练在球馆灯光下介绍今天的任务：把飘满全场的彩球点破",
+      "backdrop": "Basketball 1",
+      "interaction": "auto",
+      "dialogue": [
+        "哨子一响，球馆的灯全亮了。",
+        "我是老陈教练，今天你只干一件事——把飘起来的彩球点破。",
+        "先跟我走一圈，认认投篮区和正式球场。"
+      ],
+      "next": "station_shoot",
+      "sprites": [
+        {
+          "name": "CoachIntro",
+          "asset": "@official:Referee",
+          "duty": "站在场地左侧，边说三句开场白边挥哨子；说完自动广播进入投篮区"
+        },
+        {
+          "name": "BallIntro",
+          "asset": "@official:Beachball",
+          "duty": "在右侧地板上上下漂浮，提前露个脸，让玩家知道彩球长什么样"
+        }
+      ]
+    },
+    {
+      "id": "station_shoot",
+      "type": "station",
+      "goal": "认识投篮区，弄明白彩球是从地板缝冒出来往上飘的、点破一个算一分",
+      "backdrop": "Basketball 2",
+      "interaction": "auto",
+      "dialogue": [
+        "这块地是投篮区，地板刚打过蜡，滑得很。",
+        "彩球就从这些地板缝里冒出来，一路往屋顶飘。",
+        "点破一个算一分，飘出屋顶就不算数了。"
+      ],
+      "next": "mini_game",
+      "sprites": [
+        {
+          "name": "CoachShoot",
+          "asset": "@official:Referee",
+          "duty": "站在投篮区边线上讲规则，讲完自动广播开始小游戏"
+        },
+        {
+          "name": "BallPreview",
+          "asset": "@official:Beachball",
+          "duty": "从地板慢慢升到半空再落回去，演示彩球会一直往上飘"
+        }
+      ]
+    },
+    {
+      "id": "mini_game",
+      "type": "mini_game",
+      "goal": "30 秒内用鼠标点破 5 个从下方飘上来的彩球，攒满 5 分就赢",
+      "backdrop": "Basketball 1",
+      "interaction": "click",
+      "dialogue": [
+        "彩球开始往上飘了，点破 5 个就算你赢！",
+        "30 秒，计时开始！"
+      ],
+      "next": "station_court",
+      "sprites": [
+        {
+          "name": "CoachPlay",
+          "asset": "@official:Referee",
+          "duty": "站在左下角计时，每点破一个就报一次分，倒计时归零或满 5 分时收场"
+        },
+        {
+          "name": "BalloonSpawner",
+          "asset": "@official:Beachball",
+          "duty": "当气球模板，不断克隆出彩球从 y 下方往上飘；被点中就消失，过一会儿再冒新的"
+        }
+      ]
+    },
+    {
+      "id": "station_court",
+      "type": "station",
+      "goal": "走到正式球场，按空格把球砸向地板，听教练把胜负结果讲清楚",
+      "backdrop": "Basketball 2",
+      "interaction": "key",
+      "dialogue": [
+        "脚下就是正式球场，中线在这个位置。",
+        "按一下空格，把球砸向地板看它弹起来。"
+      ],
+      "next": "ending",
+      "sprites": [
+        {
+          "name": "CoachCourt",
+          "asset": "@official:Referee",
+          "duty": "站在中线旁，收到空格按键后让球弹一下，再广播进入结算"
+        },
+        {
+          "name": "CourtTramp",
+          "asset": "@official:Basketball",
+          "duty": "摆在球场边，按空格时原地弹跳一次，表示球已经砸到地板"
+        }
+      ]
+    },
+    {
+      "id": "ending",
+      "type": "ending",
+      "goal": "在球馆中央公布点破了几个彩球，并告诉玩家点绿旗可以再来一场",
+      "backdrop": "Basketball 1",
+      "interaction": "auto",
+      "dialogue": [
+        "你点破了 5 个彩球，馆里的灯都跟着闪了一下。",
+        "想再打一场，点绿旗就行，我在这儿等你。"
+      ],
+      "next": "game_end",
+      "sprites": [
+        {
+          "name": "CoachEnd",
+          "asset": "@official:Referee",
+          "duty": "站在舞台中央宣布最终得分，说完广播 game_end 收尾"
+        },
+        {
+          "name": "TrophyBall",
+          "asset": "@official:Beachball",
+          "duty": "在教练身边慢慢转圈庆祝，作为胜利画面"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Reindeer" file "assets/Reindeer.svg" center 39,70;
+// GuideDeer：站在舞台左下角讲解草丛地鼠的规则，讲完后轻轻点头，等玩家点爱心。
+
+// 收到开场广播：走到左下角，把地鼠的规则讲清楚，然后上下点头等玩家点爱心
+when broadcast scene_intro {
+    show;
+    set_size 60;
+    goto -130, -95;
+    say "这片草丛下面住着一窝爱吃果子的小地鼠，它们一冒头就会偷走一颗。" for 3;
+    say "它们从草丛两边的洞口轮流冒出来，点中一只，左上角的分数就多 1 分。" for 3;
+    play_sound "Pop";
+    say "点一下我怀里跳动的这颗心，30 秒倒计时就开始了，看你能按住几只。" for 3;
+    repeat 8 {
+        change_y 6;
+        wait 0.2;
+        change_y -6;
+        wait 0.2;
+    }
+}
+
+// 进入打地鼠一幕：小鹿退场，把草丛让给地鼠
+when broadcast scene_mini_game {
+    say "";
+    hide;
+}
+
+when flag {
+    hide;
+}

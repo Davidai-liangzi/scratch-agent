@@ -1,0 +1,29 @@
+sound "Cheer" file "assets/Cheer.wav";
+sound "Lose" file "assets/Lose.wav";
+sound "Pop" file "assets/Pop.wav";
+costume "Robot" file "assets/robot.svg" center 58.44040786180267,95.79979917361628;
+// GuideEnd：太空站指挥官，结算幕宣布小行星带是否清空，并读出这一趟拿到的分数
+
+// 收到结算幕广播：飞到画面中央，按最终分数说胜利或失败台词，最后广播 game_end
+when broadcast scene_end {
+    show;
+    set_size 70;
+    goto 0, 60;
+    play_sound "Pop";
+    if score >= 10 {
+        say "航道清空了！这一趟你一共打碎了好几颗陨石，空间站安全了。" for 2;
+        say "看看左上角的分数，满 10 分就是满分通关。" for 2;
+        play_sound "Cheer";
+    } else {
+        say "航道还没清干净，剩下的碎石撞上了空间站……" for 2;
+        say "这一趟你只拿到 " ++ score ++ " 分，还差 " ++ (10 - score) ++ " 分才能凑满。" for 2;
+        play_sound "Lose";
+    }
+    say "想再飞一次，点绿旗重新出发。" for 2;
+    hide;
+    broadcast game_end;
+}
+
+when flag {
+    hide;
+}

@@ -1,0 +1,35 @@
+sound "Pop" file "assets/Pop.wav";
+costume "sun" file "assets/sun.svg" center 54,54;
+// OptionRing — the corona ring light on the star map; clicking it opens the bridge scene.
+var picked = 0;
+
+// Scene start: place the light in the upper right corner and dim it a little.
+when broadcast scene_route_choice {
+    picked = 0;
+    goto 150, 85;
+    set_size 40;
+    clear_effects;
+    set_effect ghost to 20;
+    show;
+}
+
+// Player clicks this light: it flares up, names the station, then we head for the bridge.
+when clicked {
+    if picked == 0 {
+        picked = 1;
+        set_effect brightness to 60;
+        play_sound "Pop";
+        say "日冕环，贴着太阳飞的那条航线，我闭着眼都认得。" for 1.5;
+        hide;
+        broadcast scene_station_bridge;
+    }
+}
+
+// The bridge scene has started: clear the star map lights.
+when broadcast scene_station_bridge {
+    hide;
+}
+
+when flag {
+    hide;
+}

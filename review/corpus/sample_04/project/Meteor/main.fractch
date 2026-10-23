@@ -1,0 +1,47 @@
+sound "Coin" file "assets/Coin.wav";
+costume "Rocks" file "assets/Rocks.svg" center 59,15;
+// Meteor — drops rocks from the top; a rock burns up when it enters the ship's laser column or hits the ship
+
+// scene start: wait for the ship to fly in, then launch a fixed batch of rocks
+when broadcast scene_shoot {
+    hide;
+    wait 1;
+    repeat 8 {
+        if playing == 1 {
+            if score < 10 {
+                clone;
+            }
+        }
+        wait 0.5;
+    }
+}
+
+// each clone: appear at a random place above the stage and fall straight down
+when clone {
+    set_size 45;
+    motion.setrotationstyle(STYLE: "don't rotate");
+    set_x random(-170, 170);
+    set_y 150;
+    show;
+    repeat 70 {
+        change_y -4;
+        if sprites["Ship"].vars["firing"] == 1 {
+            if abs(motion.xposition() - sprites["Ship"].x) < 70 {
+                score += 1;
+                play_sound "Coin";
+                delete_clone;
+            }
+        }
+        if sensing.touchingobject(TOUCHINGOBJECTMENU: "Ship") {
+            score += 1;
+            play_sound "Coin";
+            delete_clone;
+        }
+        wait 0.05;
+    }
+    delete_clone;
+}
+
+when flag {
+    hide;
+}

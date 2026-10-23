@@ -1,0 +1,160 @@
+{
+  "title": "森林三兽冲刺赛",
+  "theme": "动物赛跑",
+  "player_verb": "点击森林向导进入赛场，再点击发令球让 Penguin、Hen 和 Puppy 同时向右跑，看谁先冲过终点心。",
+  "win": {
+    "type": "reach",
+    "value": 1,
+    "text": "任意一只动物先碰到终点心形标记即获胜，并显示它的名字。"
+  },
+  "lose": {
+    "type": "time",
+    "value": 20,
+    "text": "20 秒内三只动物都没有冲线则判为平局失败（按设计速度不会发生）。"
+  },
+  "backdrops": [
+    {
+      "name": "Forest",
+      "kind": "official",
+      "asset": "@official:Forest"
+    },
+    {
+      "name": "Savanna",
+      "kind": "official",
+      "asset": "@official:Savanna"
+    }
+  ],
+  "globals": [
+    {
+      "name": "race_started",
+      "init": "0"
+    },
+    {
+      "name": "race_over",
+      "init": "0"
+    },
+    {
+      "name": "winner",
+      "init": ""
+    }
+  ],
+  "router_sprite": "ForestGuide",
+  "routes": [],
+  "beats": [
+    {
+      "id": "intro",
+      "type": "intro",
+      "goal": "点击森林向导，让 Penguin、Hen、Puppy 从起跑线进入赛道，切换到比赛场景。",
+      "backdrop": "Forest",
+      "interaction": "click",
+      "dialogue": [
+        "森林里今天不比力气，只比谁先冲过老橡树旁的终点心。",
+        "Penguin、Hen 和 Puppy 已经在起跑线后跺脚了。",
+        "点一下森林向导，发令球就会升起来。"
+      ],
+      "next": "quiz",
+      "sprites": [
+        {
+          "name": "ForestGuide",
+          "asset": "@official:Dragon",
+          "duty": "站在画面左侧讲解规则；被点击后切换到比赛场景。"
+        },
+        {
+          "name": "StartPenguin",
+          "asset": "@official:Penguin",
+          "duty": "在起跑线后原地摆翅，表现等待开跑。"
+        },
+        {
+          "name": "StartHen",
+          "asset": "@official:Hen",
+          "duty": "在起跑线后啄地，表现等待开跑。"
+        },
+        {
+          "name": "StartPuppy",
+          "asset": "@official:Puppy",
+          "duty": "在起跑线后摇尾巴，表现等待开跑。"
+        }
+      ]
+    },
+    {
+      "id": "quiz",
+      "type": "mini_game",
+      "goal": "点击发令球后三只动物同时向右跑，第一只碰到终点心的动物成为冠军并达成 win。",
+      "backdrop": "Savanna",
+      "interaction": "click",
+      "dialogue": [
+        "三只动物并排站在起跑线后，尾巴和翅膀都在抖。",
+        "点一下发令球，它们会同时冲向终点。",
+        "第一只碰到终点心的就是冠军。"
+      ],
+      "next": "end",
+      "sprites": [
+        {
+          "name": "StartSignal",
+          "asset": "@official:Ball",
+          "duty": "放在起跑线中间，被点击后发出起跑信号并广播 race_start。"
+        },
+        {
+          "name": "PenguinRacer",
+          "asset": "@official:Penguin",
+          "duty": "收到 race_start 后向右跑，先到终点则把 winner 设为 Penguin。"
+        },
+        {
+          "name": "HenRacer",
+          "asset": "@official:Hen",
+          "duty": "收到 race_start 后向右跑，先到终点则把 winner 设为 Hen。"
+        },
+        {
+          "name": "PuppyRacer",
+          "asset": "@official:Puppy",
+          "duty": "收到 race_start 后向右跑，先到终点则把 winner 设为 Puppy。"
+        },
+        {
+          "name": "FinishHeart",
+          "asset": "@official:Heart",
+          "duty": "站在 x=180 的终点线上作为冲线标记。"
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "type": "ending",
+      "goal": "根据 winner 显示冠军动物，播放欢呼，并让玩家可以点绿旗重赛。",
+      "backdrop": "Forest",
+      "interaction": "auto",
+      "dialogue": [
+        "冠军是 [winner]！它先碰到了终点心。",
+        "Penguin、Hen 和 Puppy 都跑完了全程，森林里响起一片欢呼。",
+        "点绿旗可以让它们再跑一场。"
+      ],
+      "next": "game_end",
+      "sprites": [
+        {
+          "name": "ForestGuideEnd",
+          "asset": "@official:Dragon",
+          "duty": "在右侧宣布冠军名字，然后广播 game_end。"
+        },
+        {
+          "name": "WinnerPenguin",
+          "asset": "@official:Penguin",
+          "duty": "如果 winner 是 Penguin 就显示在领奖台上，否则隐藏。"
+        },
+        {
+          "name": "WinnerHen",
+          "asset": "@official:Hen",
+          "duty": "如果 winner 是 Hen 就显示在领奖台上，否则隐藏。"
+        },
+        {
+          "name": "WinnerPuppy",
+          "asset": "@official:Puppy",
+          "duty": "如果 winner 是 Puppy 就显示在领奖台上，否则隐藏。"
+        },
+        {
+          "name": "PodiumHeart",
+          "asset": "@official:Heart",
+          "duty": "在画面中间作为领奖台标记，衬托冠军动物。"
+        }
+      ]
+    }
+  ]
+}

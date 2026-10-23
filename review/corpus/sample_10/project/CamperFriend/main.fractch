@@ -1,0 +1,30 @@
+costume "Seed Hero 06" file "assets/Seed Hero 06.svg" center 50,50;
+// CamperFriend：站在舞台右侧的营地伙伴，跟着手鼓和铃铛的节拍左右轻晃，并催玩家去点主持人。
+use "music";
+
+// 本幕开场：伙伴上台打招呼，一边晃一边用循环打出营地节拍，鼓点开始后自己退场
+when broadcast scene_intro {
+    set_size 50;
+    goto 120, -30;
+    point 90;
+    show;
+    say "点左边的主持人一下，鼓点就开始！";
+    forever {
+        if playing == 0 {
+            music.playNoteForBeats(NOTE: 60, BEATS: 0.25);
+            turn 5;
+            wait 0.25;
+            music.playNoteForBeats(NOTE: 67, BEATS: 0.25);
+            turn_left 5;
+            wait 0.25;
+        } else {
+            say "";
+            hide;
+            wait 1;
+        }
+    }
+}
+
+when flag {
+    hide;
+}

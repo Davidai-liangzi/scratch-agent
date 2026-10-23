@@ -1,0 +1,148 @@
+{
+  "status": "rejected",
+  "reason": "max_rounds",
+  "rounds": [
+    {
+      "round": 1,
+      "must": [
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "scene_station_court",
+              "scene_ending",
+              "game_end"
+            ],
+            "sent": [
+              "scene_intro",
+              "scene_mini_game",
+              "scene_station_shoot"
+            ]
+          },
+          "route": 0
+        },
+        {
+          "id": "S1",
+          "symptom": "计分类项目里 score 从未增长",
+          "evidence": {
+            "series_size": 1,
+            "last": 0
+          },
+          "route": 0
+        }
+      ],
+      "should": [],
+      "frames": 450
+    },
+    {
+      "round": 2,
+      "must": [
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "scene_station_court",
+              "scene_ending",
+              "game_end"
+            ],
+            "sent": [
+              "scene_intro",
+              "scene_mini_game",
+              "scene_station_shoot",
+              "start_spawn"
+            ]
+          },
+          "route": 0
+        },
+        {
+          "id": "S1",
+          "symptom": "计分类项目里 score 从未增长",
+          "evidence": {
+            "series_size": 1,
+            "last": 0
+          },
+          "route": 0
+        }
+      ],
+      "should": [],
+      "frames": 450
+    },
+    {
+      "round": 3,
+      "must": [
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "game_end"
+            ],
+            "sent": [
+              "ball_bounce",
+              "got_point",
+              "scene_ending",
+              "scene_intro",
+              "scene_mini_game",
+              "scene_station_court",
+              "scene_station_shoot",
+              "start_spawn"
+            ]
+          },
+          "route": 0
+        },
+        {
+          "id": "S1",
+          "symptom": "score 已达到胜利值 5.0 但没有结算广播 game_end",
+          "evidence": {
+            "reached_frame": 262,
+            "max_score": 5
+          },
+          "route": 0
+        }
+      ],
+      "should": [],
+      "frames": 450
+    }
+  ],
+  "must": [
+    {
+      "id": "M7",
+      "symptom": "设计文档要求的幕链在实跑中没有走到",
+      "evidence": {
+        "missing": [
+          "game_end"
+        ],
+        "sent": [
+          "ball_bounce",
+          "got_point",
+          "scene_ending",
+          "scene_intro",
+          "scene_mini_game",
+          "scene_station_court",
+          "scene_station_shoot",
+          "start_spawn"
+        ]
+      },
+      "route": 0
+    },
+    {
+      "id": "S1",
+      "symptom": "score 已达到胜利值 5.0 但没有结算广播 game_end",
+      "evidence": {
+        "reached_frame": 262,
+        "max_score": 5
+      },
+      "route": 0
+    }
+  ],
+  "should": [],
+  "slices": [
+    "广播:game_end"
+  ],
+  "plan": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\corpus_01\\plan.json",
+  "elapsed": 183.6,
+  "max_rounds": 3,
+  "timeout": 300
+}

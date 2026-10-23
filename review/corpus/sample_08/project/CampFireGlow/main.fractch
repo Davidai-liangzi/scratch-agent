@@ -1,0 +1,30 @@
+costume "balloon1-a" file "assets/balloon1-a.svg" center 32,94;
+// CampFireGlow: campfire glow balloon — floats three times on success, droops in the corner on failure.
+
+// On scene_end: celebrate the chest being brought back or dim down while the captain explains the failure.
+when broadcast scene_end {
+    show;
+    go_front;
+    set_size 45;
+    // Success: bob up and down three times beside the captain.
+    if reached == 1 {
+        goto 150, -90;
+        repeat 3 {
+            motion.glidesecstoxy(SECS: 1, X: 150, Y: -50);
+            motion.glidesecstoxy(SECS: 1, X: 150, Y: -100);
+        }
+        hide;
+    } else {
+        // Failure: stay dim in the corner while the captain explains what went wrong.
+        goto 170, -110;
+        set_effect ghost to 50;
+        repeat 6 {
+            wait 1;
+        }
+        hide;
+    }
+}
+
+when flag {
+    hide;
+}

@@ -1,0 +1,41 @@
+sound "Cheer" file "assets/Cheer.wav";
+sound "Lose" file "assets/Lose.wav";
+costume "Pico Walking" file "assets/Pico_walking.svg" center 54,71;
+// GuideEnd：守在梦想乐园入口的领路探险家，念完结束语并报出三道题的总分
+when broadcast scene_ending {
+    show;
+    point 90;
+    goto -110, -20;
+    set_size 65;
+    motion.setrotationstyle(STYLE: "left-right");
+    clear_effects;
+    // 先迈几步走到门口
+    repeat 2 {
+        next_costume;
+        wait 0.1;
+    }
+    // 结束语，一句一句念
+    say "回廊里接到的宝石已经算进总分，三道题也答完了，总分就亮在舞台右上角那颗星星上。" for 1;
+    say "回廊的宝石值 15 分，三道题答对两题就有 30 分算过关，45 分是满分。" for 1;
+    say "点绿旗，梦想乐园会从秘密角落重新开放。" for 1;
+    // 按总分给出通关或失败的评价
+    if score >= 30 {
+        play_sound "Cheer";
+        turn 15;
+        wait 0.1;
+        turn -30;
+        wait 0.1;
+        turn 15;
+        wait 0.1;
+        say "你拿到 " ++ score ++ " 分，秘密角落的星星和回廊的宝石都没白捡，乐园大门为你敞开！" for 1.5;
+    } else {
+        play_sound "Lose";
+        say "只有 " ++ score ++ " 分，题目答得不够准，跟地精多要点星星、多接几颗宝石再来！" for 1.5;
+    }
+    hide;
+    broadcast game_end;
+}
+
+when flag {
+    hide;
+}

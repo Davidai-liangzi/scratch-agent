@@ -1,0 +1,112 @@
+sound "Cheer" file "assets/Cheer.wav";
+sound "Coin" file "assets/Coin.wav";
+sound "Pop" file "assets/Pop.wav";
+costume "Retro Robot" file "assets/retro_robot.svg" center 55.04000000000008,85.55;
+// QuizMaster：城堡大厅的出题人，依次念出三道题、结算每题分数，最后报出总分
+var answering = 0;   // 1 表示正在等玩家点 A/B/C 选项
+var chosen = 0;      // 0 表示还没选，1=A，2=B，3=C
+var correct = 0;     // 本幕答对的题数
+
+// 开场先把自己藏起来，等答题幕再出现
+when broadcast scene_intro {
+    hide;
+}
+
+// 进入答题幕：重置状态，一口气问完三道题（每题最多等 2.5 秒，超时按没选处理，保证流程能走完）
+when broadcast scene_quiz {
+    goto -105, -60;
+    set_size 60;
+    clear_effects;
+    show;
+    answering = 0;
+    chosen = 0;
+    correct = 0;
+
+    // 第一题：秘密角落的看守是谁，正确答案是 A 地精
+    chosen = 0;
+    answering = 1;
+    say "第一题：秘密角落里替你看守星星的是谁？A 地精，B 探险家，C 一块西瓜。";
+    reset_timer;
+    while answering == 1 && sensing.timer() < 2.5 { wait 0.2; }
+    answering = 0;
+    if chosen == 1 {
+        score += 10;
+        correct += 1;
+        play_sound "Coin";
+        say "答对了！替你守着那 8 颗星星的就是地精，加 10 分。" for 1;
+    } else {
+        score -= 5;
+        play_sound "Pop";
+        say "答错啦，秘密角落的看守是地精，不是探险家也不是西瓜，扣 5 分。" for 1;
+    }
+
+    // 第二题：林子里藏了几颗星星，正确答案是 B 8 颗
+    chosen = 0;
+    answering = 1;
+    say "第二题：林子里一共藏着几颗星星？A 6 颗，B 8 颗，C 10 颗。";
+    reset_timer;
+    while answering == 1 && sensing.timer() < 2.5 { wait 0.2; }
+    answering = 0;
+    if chosen == 2 {
+        score += 10;
+        correct += 1;
+        play_sound "Coin";
+        say "答对了！秘密角落里正好藏了 8 颗星星，加 10 分。" for 1;
+    } else {
+        score -= 5;
+        play_sound "Pop";
+        say "答错了，林子里是 8 颗星星，一颗不多一颗不少，扣 5 分。" for 1;
+    }
+
+    // 第三题：宝石回廊要接住几颗钥匙宝石，正确答案是 C 3 颗
+    chosen = 0;
+    answering = 1;
+    say "第三题：宝石回廊点亮之后，你要接住几颗下落的钥匙宝石？A 5 颗，B 8 颗，C 3 颗。";
+    reset_timer;
+    while answering == 1 && sensing.timer() < 2.5 { wait 0.2; }
+    answering = 0;
+    if chosen == 3 {
+        score += 10;
+        correct += 1;
+        play_sound "Coin";
+        say "答对了！回廊里漏接 3 颗就前功尽弃，要接满的是 3 颗宝石，加 10 分。" for 1;
+    } else {
+        score -= 5;
+        play_sound "Pop";
+        say "答错了，回廊里要接的是 3 颗宝石，扣 5 分。" for 1;
+    }
+
+    // 三题答完，亮出总分并交给结束幕
+    play_sound "Cheer";
+    if correct >= 2 {
+        say "三题答完，你答对了 " ++ correct ++ " 题，总分 " ++ score ++ " 分，梦想乐园的大门为你打开！" for 1.5;
+    } else {
+        say "三题答完，你只答对了 " ++ correct ++ " 题，总分 " ++ score ++ " 分，还得从头再闯一遍。" for 1.5;
+    }
+    hide;
+    broadcast scene_ending;
+}
+
+// 收到 A 选项的提交，只在等答案时记录
+when broadcast answer_a {
+    if answering == 1 {
+        chosen = 1;
+        answering = 0;
+    }
+}
+
+// 收到 B 选项的提交，只在等答案时记录
+when broadcast answer_b {
+    if answering == 1 {
+        chosen = 2;
+        answering = 0;
+    }
+}
+
+// 收到 C 选项的提交，只在等答案时记录
+when broadcast answer_c {
+    if answering == 1 {
+        chosen = 3;
+        answering = 0;
+    }
+}

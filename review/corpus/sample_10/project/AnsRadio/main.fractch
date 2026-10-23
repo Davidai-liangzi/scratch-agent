@@ -1,0 +1,30 @@
+sound "Boing" file "assets/Boing.wav";
+costume "Radio" file "assets/Radio.svg" center 52,38;
+// AnsRadio：营火右边的选项，一台收音机，不是营地里最受欢迎的乐器
+
+// 进入营火提问：收音机站到右边，等待被点
+when broadcast scene_quiz {
+    goto 110, -65;
+    set_size 85;
+    clear_effects;
+    show;
+}
+
+// 被点中：选错了，不加分，先广播 quiz_answered 再说话，保证幕链一定往下走
+when clicked {
+    if playing == 1 {
+        playing = 0;
+        play_sound "Boing";
+        broadcast quiz_answered;
+        say "收音机这次不灵，营火边最受欢迎的是手鼓。" for 2;
+    }
+}
+
+// 题目答完：两个选项都离开营火
+when broadcast quiz_answered {
+    hide;
+}
+
+when flag {
+    hide;
+}

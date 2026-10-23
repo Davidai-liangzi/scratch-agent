@@ -1,0 +1,46 @@
+sound "Pop" file "assets/Pop.wav";
+costume "cake-a" file "assets/cake-a.svg" center 64,50;
+costume "cake-b" file "assets/cake-b.svg" center 64,42;
+// CakeIntro：展示柜上的蛋糕造型，一边晃动一边播放甜品店背景音乐；被点击也能开始这一轮。
+use "music";
+
+// 本幕开场：站到展示柜上，来回晃动并循环播放背景旋律
+when broadcast scene_intro {
+    show;
+    costume "cake-a";
+    set_size 55;
+    goto 95, -60;
+    point 90;
+    forever {
+        music.playNoteForBeats(NOTE: 60, BEATS: 0.25);
+        next_costume;
+        change_x 5;
+        wait 0.3;
+        music.playNoteForBeats(NOTE: 67, BEATS: 0.25);
+        next_costume;
+        change_x -5;
+        wait 0.3;
+    }
+}
+
+// 被点击：和厨师一样，把分数、漏接数、倒计时归零后进入挑战
+when clicked {
+    if playing == 0 {
+        play_sound "Pop";
+        score = 0;
+        misses = 0;
+        time_left = 10;
+        playing = 1;
+        hide;
+        broadcast scene_play;
+    }
+}
+
+// 挑战已经开始：把开场的蛋糕从展示柜上收走
+when broadcast scene_play {
+    hide;
+}
+
+when flag {
+    hide;
+}

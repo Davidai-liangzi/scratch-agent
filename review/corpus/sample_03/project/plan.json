@@ -1,0 +1,384 @@
+{
+  "title": "梦想小镇三条街一日游",
+  "theme": "购物中心游览：美妆区、美食区、电影院，由伙伴导游带路逐站讲解",
+  "player_verb": "点击三个街牌选一条街，按空格点亮入口徽章和抓气球，点击柜台或银幕上的爱心收星星",
+  "win": {
+    "type": "score",
+    "value": 5,
+    "text": "这条街上累计拿到 5 颗星星（入口 3 枚徽章 + 终点/气球送的星星）就算逛得圆满"
+  },
+  "lose": {
+    "type": "time",
+    "value": 0,
+    "text": "小游戏倒计时归零时星星还不到 5 颗，这趟就白跑了"
+  },
+  "backdrops": [
+    {
+      "name": "Kenney Urban Mall",
+      "kind": "official",
+      "asset": "@official:Kenney Urban Mall"
+    },
+    {
+      "name": "Spotlight",
+      "kind": "official",
+      "asset": "@official:Spotlight"
+    },
+    {
+      "name": "Kenney Urban Restaurant",
+      "kind": "official",
+      "asset": "@official:Kenney Urban Restaurant"
+    },
+    {
+      "name": "Night City",
+      "kind": "official",
+      "asset": "@official:Night City"
+    }
+  ],
+  "globals": [
+    {
+      "name": "score",
+      "init": "0"
+    },
+    {
+      "name": "time_left",
+      "init": "30"
+    },
+    {
+      "name": "route",
+      "init": "0"
+    }
+  ],
+  "router_sprite": "RouterGuide",
+  "routes": [
+    {
+      "id": "beauty",
+      "name": "Beauty Street",
+      "option_sprite": "RouteBeauty",
+      "stations": [
+        "beauty_entrance",
+        "beauty_end",
+        "beauty_game"
+      ]
+    },
+    {
+      "id": "food",
+      "name": "Food Street",
+      "option_sprite": "RouteFood",
+      "stations": [
+        "food_entrance",
+        "food_end",
+        "food_game"
+      ]
+    },
+    {
+      "id": "cinema",
+      "name": "Cinema Street",
+      "option_sprite": "RouteCinema",
+      "stations": [
+        "cinema_entrance",
+        "cinema_end",
+        "cinema_game"
+      ]
+    }
+  ],
+  "beats": [
+    {
+      "id": "intro",
+      "type": "intro",
+      "goal": "伙伴 Hero 在广场上介绍梦想小镇的三条街，说完自动进入选街",
+      "backdrop": "Kenney Urban Mall",
+      "interaction": "auto",
+      "dialogue": [
+        "梦想小镇今天开街，彩灯一路挂到广场的喷泉边。",
+        "我是你的伙伴 Hero，美妆区、美食区、电影院，先跟我认认这三块招牌。"
+      ],
+      "next": "route_choice",
+      "sprites": [
+        {
+          "name": "GuideIntro",
+          "asset": "@official:Kenney Guide",
+          "duty": "站在广场中央讲解三条街，讲完自动广播 route_choice"
+        },
+        {
+          "name": "BuddyHero",
+          "asset": "@official:Seed Hero 05",
+          "duty": "站在导游左侧点头挥手，表示玩家跟着他走"
+        }
+      ]
+    },
+    {
+      "id": "route_choice",
+      "type": "route_choice",
+      "goal": "玩家点击美妆区、美食区、电影院三块街牌之一，导游记下路线并带路",
+      "backdrop": "Kenney Urban Mall",
+      "interaction": "click",
+      "dialogue": [
+        "三条街都亮着灯，今天只够走一条。",
+        "美妆区的镜子、美食区的汤锅、电影院的幕布——点一块街牌，我就带你拐进去。"
+      ],
+      "next": "routes",
+      "sprites": [
+        {
+          "name": "RouterGuide",
+          "asset": "@official:Kenney Guide",
+          "duty": "站在三块街牌下方等待点击，收到路线广播后说出街名并切到该街第一站"
+        },
+        {
+          "name": "RouteBeauty",
+          "asset": "@official:Dress",
+          "duty": "美妆区街牌，被点击后设置 route=beauty 并隐藏自己"
+        },
+        {
+          "name": "RouteFood",
+          "asset": "@official:Food Truck",
+          "duty": "美食区街牌，被点击后设置 route=food 并隐藏自己"
+        },
+        {
+          "name": "RouteCinema",
+          "asset": "@official:Ballerina",
+          "duty": "电影院街牌，被点击后设置 route=cinema 并隐藏自己"
+        }
+      ]
+    },
+    {
+      "id": "beauty_entrance",
+      "type": "station",
+      "goal": "在美妆区入口按空格点亮试妆镜，收齐 3 枚美妆徽章",
+      "backdrop": "Spotlight",
+      "interaction": "key",
+      "dialogue": [
+        "美妆区的入口立着一面试妆镜，灯泡还没亮。",
+        "按空格把灯打开，镜框上会蹦出三枚蝴蝶徽章，收齐了才放你进去。"
+      ],
+      "next": "beauty_end",
+      "sprites": [
+        {
+          "name": "BeautyGuide",
+          "asset": "@official:Abby",
+          "duty": "站在试妆镜旁讲解规则，并数玩家已经点亮了几枚徽章"
+        },
+        {
+          "name": "BeautyStar",
+          "asset": "@official:Party Hats",
+          "duty": "每次按空格就在镜框上换个位置出现，被点亮后加分并消失"
+        }
+      ]
+    },
+    {
+      "id": "beauty_end",
+      "type": "station",
+      "goal": "在美妆区终点的丝巾柜台点击爱心，把镜子里的星星点出来",
+      "backdrop": "Spotlight",
+      "interaction": "click",
+      "dialogue": [
+        "欢迎来到美妆区的终点——丝巾柜台。",
+        "点一下柜台上的爱心，星星会从镜子里跳出来，一次只跳一颗。"
+      ],
+      "next": "beauty_game",
+      "sprites": [
+        {
+          "name": "BeautyClerk",
+          "asset": "@official:Kenney Shopkeeper",
+          "duty": "柜台后的店员，玩家点中爱心后夸一句并指向下一站"
+        },
+        {
+          "name": "BeautySparkle",
+          "asset": "@official:Heart",
+          "duty": "柜台上的爱心，被点击后加分、闪一下并换个位置再次出现"
+        }
+      ]
+    },
+    {
+      "id": "beauty_game",
+      "type": "station",
+      "goal": "30 秒内按空格抓住从试妆镜后飘出的气球，收满 3 个礼物",
+      "backdrop": "Spotlight",
+      "interaction": "key",
+      "dialogue": [
+        "气球从试妆镜后面飘出来了！",
+        "按空格抓住气球，收满 3 个礼物，别让它们飞出屋顶。"
+      ],
+      "next": "ending",
+      "sprites": [
+        {
+          "name": "BeautyBalloon",
+          "asset": "@official:Balloon1",
+          "duty": "从镜后由下往上飘，按空格碰到就加分，飘出顶后换新气球重来"
+        },
+        {
+          "name": "BeautyMagician",
+          "asset": "@official:Wizard",
+          "duty": "站在台侧挥棒，报告已抓到的气球数并倒数剩余时间"
+        }
+      ]
+    },
+    {
+      "id": "food_entrance",
+      "type": "station",
+      "goal": "在美食区入口按空格点燃大汤锅，收齐 3 枚橘子徽章",
+      "backdrop": "Kenney Urban Restaurant",
+      "interaction": "key",
+      "dialogue": [
+        "美食区的入口是一口大汤锅，火还没点。",
+        "按空格开火，锅边会蹦出三枚橘子徽章，溅到地上可就不算数了。"
+      ],
+      "next": "food_end",
+      "sprites": [
+        {
+          "name": "FoodGuide",
+          "asset": "@official:Kenney Chef",
+          "duty": "守在汤锅边讲规则，玩家每按一次空格就报一次还差几枚徽章"
+        },
+        {
+          "name": "FoodBadge",
+          "asset": "@official:Orange2",
+          "duty": "按空格后在锅沿换位置弹出，被点中/碰到就加分并消失"
+        }
+      ]
+    },
+    {
+      "id": "food_end",
+      "type": "station",
+      "goal": "在美食区终点的甜品台点击蛋糕，把奶油下的星星点出来",
+      "backdrop": "Kenney Urban Restaurant",
+      "interaction": "click",
+      "dialogue": [
+        "欢迎来到美食区的终点——甜品台。",
+        "点一下这块蛋糕，看看奶油底下藏了几颗星星。"
+      ],
+      "next": "food_game",
+      "sprites": [
+        {
+          "name": "FoodWaiter",
+          "asset": "@official:Kenney Waiter",
+          "duty": "端着盘子的服务员，玩家点中蛋糕后报一次星星数并提示去后厨"
+        },
+        {
+          "name": "FoodCake",
+          "asset": "@official:Cake",
+          "duty": "甜品台上的蛋糕，被点击后加分、切个造型并挪到新位置"
+        }
+      ]
+    },
+    {
+      "id": "food_game",
+      "type": "station",
+      "goal": "30 秒内按空格抓住厨房飘出的餐盘气球，收满 3 个礼物",
+      "backdrop": "Kenney Urban Restaurant",
+      "interaction": "key",
+      "dialogue": [
+        "餐盘气球从厨房飘起来了！",
+        "按空格抓住它们，收满 3 个礼物，汤要凉了。"
+      ],
+      "next": "ending",
+      "sprites": [
+        {
+          "name": "FoodBalloon",
+          "asset": "@official:Balloon1",
+          "duty": "从厨房门后往上飘，按空格碰到就加分，飘出顶后换个位置重来"
+        },
+        {
+          "name": "FoodHelper",
+          "asset": "@official:Kenney Customer",
+          "duty": "抱着一摞盘子的客人，报告抓到的气球数并倒数剩余时间"
+        }
+      ]
+    },
+    {
+      "id": "cinema_entrance",
+      "type": "station",
+      "goal": "在电影院入口按空格掀开幕布，收齐 3 枚星星徽章",
+      "backdrop": "Night City",
+      "interaction": "key",
+      "dialogue": [
+        "电影院的门口挂着今晚的海报，幕布还拉着。",
+        "按空格掀开幕布，前排座椅会亮起三枚星星徽章。"
+      ],
+      "next": "cinema_end",
+      "sprites": [
+        {
+          "name": "CinemaGuide",
+          "asset": "@official:Kenney Teacher",
+          "duty": "检票口的引座员，讲规则并报出还差几枚徽章才能进场"
+        },
+        {
+          "name": "CinemaTicket",
+          "asset": "@official:Arrow1",
+          "duty": "按空格后在幕布上一亮相，被碰到就加分并指向下一排座位"
+        }
+      ]
+    },
+    {
+      "id": "cinema_end",
+      "type": "station",
+      "goal": "在影厅终点点击银幕上的爱心，让放映机撒出星星",
+      "backdrop": "Night City",
+      "interaction": "click",
+      "dialogue": [
+        "欢迎来到影厅终点，字幕刚滚完。",
+        "点一下银幕上的爱心，星星会从放映机口飞出来。"
+      ],
+      "next": "cinema_game",
+      "sprites": [
+        {
+          "name": "CinemaStar",
+          "asset": "@official:Ballerina",
+          "duty": "银幕上的女主角，玩家点中爱心后行个礼并报出星星数"
+        },
+        {
+          "name": "CinemaHeart",
+          "asset": "@official:Heart",
+          "duty": "银幕中央的爱心，被点击后加分、闪一下并换到另一侧再次出现"
+        }
+      ]
+    },
+    {
+      "id": "cinema_game",
+      "type": "station",
+      "goal": "30 秒内按空格抓住飘过幕布的爆米花气球，收满 3 个礼物",
+      "backdrop": "Night City",
+      "interaction": "key",
+      "dialogue": [
+        "爆米花气球从放映机口飘了出来！",
+        "按空格抓住它们，收满 3 个礼物，散场灯就要亮了。"
+      ],
+      "next": "ending",
+      "sprites": [
+        {
+          "name": "CinemaBalloon",
+          "asset": "@official:Balloon1",
+          "duty": "横穿幕布往上飘，按空格碰到就加分，飘出画面上方后换边重来"
+        },
+        {
+          "name": "CinemaCrew",
+          "asset": "@official:Kenney Customer",
+          "duty": "后排观众，报告抓到的气球数并倒数剩余时间"
+        }
+      ]
+    },
+    {
+      "id": "ending",
+      "type": "ending",
+      "goal": "回到广场结算星星数，给出这趟的结论并提示点绿旗重来",
+      "backdrop": "Kenney Urban Mall",
+      "interaction": "auto",
+      "dialogue": [
+        "回到广场啦，数一数你口袋里的星星——满 5 颗，这趟就没白走。",
+        "哪条街还想再逛一遍？点绿旗，换一块街牌重新出发。"
+      ],
+      "next": "game_end",
+      "sprites": [
+        {
+          "name": "GuideEnd",
+          "asset": "@official:Kenney Guide",
+          "duty": "在广场中央念结束语，报出最终星星数后广播 game_end 复位"
+        },
+        {
+          "name": "BuddyEnd",
+          "asset": "@official:Seed Hero 05",
+          "duty": "把星星数喊出来，未满 5 颗时提醒玩家下次多按空格"
+        }
+      ]
+    }
+  ]
+}

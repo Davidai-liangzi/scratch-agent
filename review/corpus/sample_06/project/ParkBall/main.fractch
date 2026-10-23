@@ -1,0 +1,26 @@
+costume "beachball" file "assets/beachball.svg" center 34,33;
+// ParkBall：乐园入口右侧的装饰沙滩球，一边轻轻弹跳一边循环播放背景旋律。
+use "music";
+
+// 进入本幕：滚到右侧原地弹跳，同时演奏背景音乐；离开本幕后自动隐藏。
+when broadcast scene_intro {
+    goto 130, -30;
+    set_size 60;
+    costume "beachball";
+    show;
+    forever {
+        music.playNoteForBeats(NOTE: 60, BEATS: 0.25);
+        music.playNoteForBeats(NOTE: 67, BEATS: 0.25);
+        wait 0.5;
+        if stars == 0 {
+            motion.glidesecstoxy(SECS: 0.25, X: 130, Y: 10);
+            motion.glidesecstoxy(SECS: 0.25, X: 130, Y: -30);
+        } else {
+            hide;
+        }
+    }
+}
+
+when flag {
+    hide;
+}

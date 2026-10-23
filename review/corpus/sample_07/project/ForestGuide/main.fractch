@@ -1,0 +1,37 @@
+sound "Pop" file "assets/Pop.wav";
+costume "dragon-a" file "assets/dragon-a.svg" center 124.12215277545062,106.25815347723332;
+costume "dragon-b" file "assets/dragon-b.svg" center 152.5,99;
+costume "dragon-c" file "assets/dragon-c.svg" center 124.4550776985194,105.92484014389998;
+// ForestGuide：森林向导（Dragon 扮相），守在画面左侧讲解规则，被点击后把三只动物送进赛场。
+var intro_done = 0;
+
+// 幕开始：站到左侧起跑线旁，依次说出规则；台词说完还没人点，就自己打开比赛场景
+when broadcast scene_intro {
+    intro_done = 0;
+    show;
+    goto -140, 25;
+    set_size 60;
+    costume "dragon-a";
+    say "森林里今天不比力气，只比谁先冲过老橡树旁的终点心。" for 2;
+    next_costume;
+    say "Penguin、Hen 和 Puppy 已经在起跑线后跺脚了。" for 2;
+    next_costume;
+    say "点一下森林向导，发令球就会升起来。" for 2;
+    if intro_done == 0 {
+        intro_done = 1;
+        hide;
+        broadcast scene_quiz;
+    }
+}
+
+// 被玩家点击：响一声起跑提示音，躲到幕后，切到比赛场景
+when clicked {
+    intro_done = 1;
+    play_sound "Pop";
+    hide;
+    broadcast scene_quiz;
+}
+
+when flag {
+    hide;
+}

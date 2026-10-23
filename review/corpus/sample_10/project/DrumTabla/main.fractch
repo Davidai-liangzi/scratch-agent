@@ -1,0 +1,46 @@
+sound "Coin" file "assets/Coin.wav";
+sound "Pop" file "assets/Pop.wav";
+costume "Tabla-a" file "assets/tabla.svg" center 79,67;
+// DrumTabla：舞台中间的塔布拉鼓。轮到它时闪光变大，点中它加 1 分。
+var hit_flag = 0;
+
+// 收到 scene_play：站到中间，跟着主持人的 active 标记亮起或暗下去，本轮结束后隐藏。
+when broadcast scene_play {
+    goto 0, -50;
+    set_size 65;
+    set_effect brightness to 0;
+    show;
+    hit_flag = 0;
+    wait 0.2;
+    until playing == 0 {
+        if sprites["HostPlay"].vars["active"] == 2 {
+            set_size 82;
+            set_effect brightness to 40;
+        } else {
+            set_size 65;
+            set_effect brightness to 0;
+            hit_flag = 0;
+        }
+        wait 0.1;
+    }
+    set_size 65;
+    set_effect brightness to 0;
+    hide;
+}
+
+// 被点击：只有正亮着的塔布拉鼓才加分，暗着的两件只响一声 Pop。
+when clicked {
+    if playing == 1 {
+        if sprites["HostPlay"].vars["active"] == 2 && hit_flag == 0 {
+            hit_flag = 1;
+            score += 1;
+            play_sound "Coin";
+        } else {
+            play_sound "Pop";
+        }
+    }
+}
+
+when flag {
+    hide;
+}

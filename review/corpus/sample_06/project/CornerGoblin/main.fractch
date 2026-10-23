@@ -1,0 +1,42 @@
+sound "Cheer" file "assets/Cheer.wav";
+sound "Pop" file "assets/Pop.wav";
+costume "goblin-a" file "assets/goblin-a.svg" center 40,80;
+costume "goblin-b" file "assets/goblin-b.svg" center 40,80;
+costume "goblin-c" file "assets/goblin-c.svg" center 40,80;
+// CornerGoblin: keeper of the secret corner. Every click hands the player one star; 8 stars open the gem corridor gate.
+
+// Scene entry: stand in the woods, explain the rule, then wait until all 8 stars are lit.
+when broadcast scene_station {
+    stars = 0;
+    set_size 80;
+    goto -70, -10;
+    costume "goblin-a";
+    show;
+    say "这片林子就是秘密角落，8 颗星星全被我攥在手心里。" for 1;
+    say "点我一次就放一颗，星星全都亮了，宝石回廊的门才会开。";
+    until stars >= 8 {
+        wait 0.2;
+    }
+    say "八颗星星全亮了！宝石回廊的门开了，快跟我来！" for 1;
+    play_sound "Cheer";
+    hide;
+    broadcast scene_mini_game;
+}
+
+// Player clicks the goblin: give out exactly one star per click, up to 8.
+when clicked {
+    if stars < 8 {
+        stars += 1;
+        play_sound "Pop";
+        if stars % 2 == 0 {
+            costume "goblin-b";
+        } else {
+            costume "goblin-c";
+        }
+        broadcast star_lit;
+    }
+}
+
+when flag {
+    hide;
+}

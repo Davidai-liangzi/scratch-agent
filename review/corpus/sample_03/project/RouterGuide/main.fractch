@@ -1,0 +1,45 @@
+costume "Kenney Guide" file "assets/RouterGuide.png" center 48,48;
+// RouterGuide: deterministic route dispatcher
+when broadcast scene_intro {
+    hide;
+}
+
+when broadcast scene_route_choice {
+    show;
+    goto 0, 95;
+    set_size 60;
+    say "三条街都亮着灯，今天只够走一条。" for 2;
+    say "美妆区的镜子、美食区的汤锅、电影院的幕布——点一块街牌，我就带你拐进去。" for 2;
+}
+
+when broadcast start_tour {
+    hide;
+    play_sound "Cheer";
+    if route == 1 {
+        broadcast scene_beauty_entrance;
+        wait_until done_beauty_entrance == 1;
+        broadcast scene_beauty_end;
+        wait_until done_beauty_end == 1;
+        broadcast scene_beauty_game;
+        wait_until done_beauty_game == 1;
+    } else if route == 2 {
+        broadcast scene_food_entrance;
+        wait_until done_food_entrance == 1;
+        broadcast scene_food_end;
+        wait_until done_food_end == 1;
+        broadcast scene_food_game;
+        wait_until done_food_game == 1;
+    } else if route == 3 {
+        broadcast scene_cinema_entrance;
+        wait_until done_cinema_entrance == 1;
+        broadcast scene_cinema_end;
+        wait_until done_cinema_end == 1;
+        broadcast scene_cinema_game;
+        wait_until done_cinema_game == 1;
+    }
+    broadcast scene_ending;
+}
+
+when flag {
+    hide;
+}

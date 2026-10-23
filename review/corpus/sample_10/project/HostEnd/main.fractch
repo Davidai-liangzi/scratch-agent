@@ -1,0 +1,26 @@
+sound "Cheer" file "assets/Cheer.wav";
+costume "Singer1" file "assets/Singer1.svg" center 75,75;
+// HostEnd: the camp host under the spotlight. It gives one win/lose line, then broadcasts game_end to finish the round.
+
+var gap = 0;
+
+// On this scene's opening broadcast: judge the result in one line, then hand off to the stage for cleanup.
+when broadcast scene_end {
+    show;
+    goto -100, -60;
+    set_size 80;
+    if score >= 8 {
+        play_sound "Cheer";
+        say "You hit " ++ score ++ " points, reached 8, and became the camp rhythm master! Click the green flag for another round." for 1;
+    } else {
+        gap = 8 - score;
+        say "You hit " ++ score ++ " points, still " ++ gap ++ " short of 8. Click the green flag for another round." for 1;
+    }
+    hide;
+    broadcast game_end;
+}
+
+// Keep the host off stage (and out of the click area) before its scene starts.
+when flag {
+    hide;
+}

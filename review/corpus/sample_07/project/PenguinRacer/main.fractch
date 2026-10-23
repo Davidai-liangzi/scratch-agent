@@ -1,0 +1,47 @@
+sound "Cheer" file "assets/Cheer.wav";
+costume "Penguin" file "assets/penguin.svg" center 36,46;
+// PenguinRacer: waits on the top lane, then sprints for the finish heart when the race starts.
+
+// Line up on the top lane and twitch while everybody waits for the start signal.
+when broadcast scene_quiz {
+    costume "Penguin";
+    goto -170, 60;
+    set_size 70;
+    show;
+    repeat 30 {
+        if race_started == 0 {
+            change_y 4;
+            wait 0.1;
+            change_y -4;
+            wait 0.1;
+        }
+    }
+}
+
+// Sprint right in fixed steps; the first animal to touch the finish heart wins the race.
+when broadcast race_start {
+    if race_over == 0 {
+        repeat 87 {
+            if race_over == 0 {
+                change_x 4;
+                next_costume;
+                wait 0.06;
+                if random(1, 6) == 1 {
+                    wait 0.1;
+                }
+            }
+        }
+        if race_over == 0 {
+            race_over = 1;
+            winner = "Penguin";
+            play_sound "Cheer";
+            say "Penguin waddles onto the finish heart first!" for 1;
+            hide;
+            broadcast scene_end;
+        }
+    }
+}
+
+when flag {
+    hide;
+}

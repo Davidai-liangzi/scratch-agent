@@ -1,0 +1,26 @@
+costume "Star" file "assets/Star.svg" center 22,23;
+// HudStar — small star pinned to the top-left corner: shows the score and plays a light space BGM
+use "music";
+
+// scene start: shrink into the corner, then keep the score and the background melody running
+when broadcast scene_shoot {
+    set_size 55;
+    motion.glidesecstoxy(SECS: 0.2, X: -165, Y: 118);
+    sound.setvolumeto(VOLUME: 60);
+    music.setInstrument(INSTRUMENT: 1);
+    show;
+    forever {
+        if playing == 1 {
+            if score < 10 {
+                say "分数 " ++ score ++ " / 10";
+                music.playNoteForBeats(NOTE: 72, BEATS: 0.25);
+                music.playNoteForBeats(NOTE: 79, BEATS: 0.25);
+            }
+        }
+        wait 0.6;
+    }
+}
+
+when flag {
+    hide;
+}

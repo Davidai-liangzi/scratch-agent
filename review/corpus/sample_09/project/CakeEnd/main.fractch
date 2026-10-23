@@ -1,0 +1,25 @@
+sound "Pop" file "assets/Pop.wav";
+costume "cake-b" file "assets/cake-b.svg" center 64,42;
+// CakeEnd：结算画面里展示被接住的蛋糕，轻轻晃动后收起
+
+// 收到结算幕开始：摆到右侧展示位（和左侧的厨师分开，不叠在一起），播放提示音并晃动展示，展示完立刻收起
+when broadcast scene_end {
+    costume "cake-b";
+    set_size 60;
+    goto 130, 60;
+    show;
+    play_sound "Pop";
+    repeat 4 {
+        change_size 6;
+        wait 0.2;
+        change_size -6;
+        wait 0.2;
+    }
+    wait 1;
+    hide;
+}
+
+// 绿旗重开：确保结算用的蛋糕不会残留在舞台上
+when flag {
+    hide;
+}

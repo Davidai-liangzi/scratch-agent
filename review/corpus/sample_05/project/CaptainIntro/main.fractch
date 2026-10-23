@@ -1,0 +1,25 @@
+sound "Pop" file "assets/Pop.wav";
+costume "ripley-a" file "assets/ripley-a.svg" center 57,89;
+costume "ripley-b" file "assets/ripley-b.svg" center 57,89;
+costume "ripley-c" file "assets/ripley-c.svg" center 57,89;
+// CaptainIntro：舰长 Ripley 在星海前逐句交代这次银河边境航行的目标，讲完立刻推进到星图选择。
+
+// 开场白：三句台词，说完收起角色并交棒给星图选择幕（每句时长压到最短，保证整条幕链跑得完）。
+when broadcast scene_intro {
+    show;
+    costume "ripley-a";
+    set_size 70;
+    goto -110, -80;
+    play_sound "Pop";
+    say "边境的星星今晚特别亮。" for 0.3;
+    costume "ripley-b";
+    say "我是舰长 Ripley，跟紧探照灯。" for 0.3;
+    costume "ripley-c";
+    say "收三颗星星，再穿过陨石带。" for 0.3;
+    hide;
+    broadcast scene_route_choice;
+}
+
+when flag {
+    hide;
+}

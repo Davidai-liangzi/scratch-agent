@@ -1,0 +1,33 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Watermelon" file "assets/watermelon.svg" center 40.13434982299805,27.860475540161133;
+costume "Crystal" file "assets/crystal.svg" center 15,15;
+// OptionB：答题大厅正中上方的 B 选项按钮（水晶），出题时被点击就提交答案 B
+
+// 开场先把自己藏起来，等答题幕再出现
+when broadcast scene_intro {
+    hide;
+}
+
+// 答题幕开始，站到大厅正上方
+when broadcast scene_quiz {
+    goto 0, 105;
+    set_size 45;
+    clear_effects;
+    show;
+}
+
+// 被点击时提交 B 答案，并短暂变暗作为按下的反馈
+when clicked {
+    if sprites["QuizMaster"].vars["answering"] == 1 {
+        broadcast answer_b;
+        play_sound "Pop";
+        set_effect ghost to 60;
+        wait 0.3;
+        clear_effects;
+    }
+}
+
+// 三题答完进入结束幕，把按钮收起来
+when broadcast scene_ending {
+    hide;
+}

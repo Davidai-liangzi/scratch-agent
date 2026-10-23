@@ -1,0 +1,49 @@
+sound "Cheer" file "assets/Cheer.wav";
+sound "Lose" file "assets/Lose.wav";
+sound "Pop" file "assets/Pop.wav";
+costume "Referee" file "assets/Referee.svg" center 44,63;
+// CoachPlay: 站在球场左下角跑倒计时，报出每一个点破的彩球，然后交给正式球场
+use "music";
+
+// 小游戏开始：清分数、设倒计时、说两句规则，然后放开彩球
+when broadcast scene_mini_game {
+    score = 0;
+    time_left = 10;
+    set_size 40;
+    goto -165, -105;
+    show;
+    costume "Referee";
+    say "彩球开始往上飘了，点破 5 个就算你赢！" for 0.8;
+    say "计时开始，手快点！" for 0.6;
+    broadcast start_spawn;
+
+    // 倒计时：每 0.4 秒一滴答，攒够 5 分或时间归零就停
+    until time_left <= 0 || score >= 5 {
+        wait 0.4;
+        music.playNoteForBeats(NOTE: 76, BEATS: 0.25);
+        time_left -= 1;
+    }
+
+    if score >= 5 {
+        play_sound "Cheer";
+        say "5 分到手，馆里的灯都跟着你闪了一下！" for 0.9;
+    } else {
+        play_sound "Lose";
+        say "时间到，彩球还在屋顶下面飘，下次手再快点。" for 0.9;
+    }
+    say "跟我去正式球场，按空格把球砸向地板。" for 0.9;
+    hide;
+    broadcast scene_station_court;
+}
+
+// 每点破一个彩球都报一次，方便玩家数数
+when broadcast got_point {
+    if score < 5 && time_left > 0 {
+        say "第 " ++ score ++ " 个！" for 0.4;
+    }
+}
+
+// 绿旗：先躲起来
+when flag {
+    hide;
+}

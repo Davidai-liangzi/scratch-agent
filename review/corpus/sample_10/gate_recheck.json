@@ -1,0 +1,17 @@
+{
+  "status": "passed",
+  "reason": "",
+  "rounds": [
+    {
+      "round": 1,
+      "must": [],
+      "should": [],
+      "frames": 450
+    }
+  ],
+  "must": [],
+  "should": [],
+  "slices": [],
+  "plan": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\corpus_10\\plan.json",
+  "elapsed": 25.0
+}

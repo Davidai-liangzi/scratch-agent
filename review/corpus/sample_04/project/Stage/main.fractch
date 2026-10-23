@@ -1,0 +1,56 @@
+backdrop "Space" file "assets/bd_0.png" center 240,180;
+backdrop "Nebula" file "assets/bd_1.png" center 240,180;
+backdrop "Stars" file "assets/bd_2.png" center 240,180;
+backdrop "Galaxy" file "assets/bd_3.png" center 240,180;
+backdrop "Moon" file "assets/bd_4.png" center 240,180;
+/* 舞台由装配器生成：全局变量 + 背景 + 场景切换 */
+var score = 0;
+var time_left = 45;
+var playing = 1;
+watch var "score" at 10,10;
+watch var "time_left" at 10,40;
+watch var "playing" at 10,70;
+
+when flag {
+    score = 0;
+    time_left = 45;
+    playing = 1;
+    backdrop "Space";
+    broadcast scene_intro;
+}
+
+when broadcast scene_intro {
+    backdrop "Space";
+}
+
+when broadcast scene_brief {
+    backdrop "Nebula";
+}
+
+// 射击幕：给玩家 3 秒体验激光柱，时间一到自动进入弹幕幕
+when broadcast scene_shoot {
+    backdrop "Stars";
+    repeat 3 {
+        wait 1;
+    }
+    broadcast scene_barrage;
+}
+
+// 弹幕幕：5 秒固定倒计时，倒计时结束由舞台自己广播 scene_end，保证幕链一定走到结算
+when broadcast scene_barrage {
+    backdrop "Galaxy";
+    time_left = 5;
+    repeat 5 {
+        wait 1;
+        time_left -= 1;
+    }
+    broadcast scene_end;
+}
+
+when broadcast scene_end {
+    backdrop "Moon";
+}
+
+when broadcast game_end {
+    stop all;
+}

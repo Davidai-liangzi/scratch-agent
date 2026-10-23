@@ -1,0 +1,46 @@
+sound "Cheer" file "assets/Cheer.wav";
+costume "Puppy" file "assets/puppy.png" center 107,103;
+// PuppyRacer: waits on the bottom lane, then bolts for the finish heart when the race starts.
+
+// Line up on the bottom lane and wag while everybody waits for the start signal.
+when broadcast scene_quiz {
+    costume "Puppy";
+    goto -170, -60;
+    set_size 55;
+    show;
+    repeat 30 {
+        if race_started == 0 {
+            change_y 4;
+            wait 0.1;
+            change_y -4;
+            wait 0.1;
+        }
+    }
+}
+
+// Bolt right in fixed steps; the first animal to touch the finish heart wins the race.
+when broadcast race_start {
+    if race_over == 0 {
+        repeat 58 {
+            if race_over == 0 {
+                change_x 6;
+                wait 0.09;
+                if random(1, 4) == 1 {
+                    wait 0.1;
+                }
+            }
+        }
+        if race_over == 0 {
+            race_over = 1;
+            winner = "Puppy";
+            play_sound "Cheer";
+            say "Puppy dashes past the line and lands on the heart!" for 1;
+            hide;
+            broadcast scene_end;
+        }
+    }
+}
+
+when flag {
+    hide;
+}

@@ -1,0 +1,132 @@
+{
+  "title": "迷雾丛林寻宝：跟着队长走迷宫",
+  "theme": "迷宫寻宝——在冒险营地的丛林迷宫里，用方向键控制小人绕过石墙走到宝箱",
+  "player_verb": "点击队长拿到路线图后，用键盘方向键一步一步挪动小人，穿过迷宫通道走进宝箱",
+  "win": {
+    "type": "reach",
+    "value": 1,
+    "text": "在 60 秒内走进丛林迷宫尽头的宝箱，屏幕显示胜利"
+  },
+  "lose": {
+    "type": "time",
+    "value": 0,
+    "text": "60 秒倒计时归零还没摸到宝箱，队长把你拉回营地算失败"
+  },
+  "backdrops": [
+    {
+      "name": "Forest",
+      "kind": "official",
+      "asset": "@official:Forest"
+    },
+    {
+      "name": "Jungle",
+      "kind": "official",
+      "asset": "@official:Jungle"
+    },
+    {
+      "name": "Spotlight",
+      "kind": "official",
+      "asset": "@official:Spotlight"
+    }
+  ],
+  "globals": [
+    {
+      "name": "score",
+      "init": "0"
+    },
+    {
+      "name": "time_left",
+      "init": "60"
+    },
+    {
+      "name": "playing",
+      "init": "0"
+    },
+    {
+      "name": "reached",
+      "init": "0"
+    }
+  ],
+  "router_sprite": "GuideCaptain",
+  "routes": [],
+  "beats": [
+    {
+      "id": "intro",
+      "type": "intro",
+      "goal": "点击 Devin 队长拿到路线图，把画面切到丛林迷宫",
+      "backdrop": "Forest",
+      "interaction": "click",
+      "dialogue": [
+        "雾还没散，宝箱就被抬进前面那片丛林迷宫了。",
+        "点我一下，路线图归你，方向键也归你指挥。"
+      ],
+      "next": "play",
+      "sprites": [
+        {
+          "name": "GuideCaptain",
+          "asset": "@official:Devin",
+          "duty": "站在营地左侧说话讲解规则，被点击后广播进入迷宫（本幕唯一控制显隐的角色）"
+        }
+      ]
+    },
+    {
+      "id": "play",
+      "type": "mini_game",
+      "goal": "用方向键在丛林迷宫里绕过石墙，走到闪光的宝箱上即达成胜利条件；60 秒走不到就算输",
+      "backdrop": "Jungle",
+      "interaction": "key",
+      "dialogue": [
+        "方向键一步一步挪，别贴着石墙硬蹭。",
+        "看见那只发光的宝箱就走进去——碰到它就算你赢。"
+      ],
+      "next": "end",
+      "sprites": [
+        {
+          "name": "MazeHero",
+          "asset": "@official:Devin",
+          "duty": "站在迷宫入口，按上下左右方向键一格一格移动，碰到石墙就停住"
+        },
+        {
+          "name": "MazeWall",
+          "asset": "@official:Rocks",
+          "duty": "作为迷宫的石墙，用多个克隆摆出通道，挡住小人去路"
+        },
+        {
+          "name": "TreasureChest",
+          "asset": "@official:Gift",
+          "duty": "停在迷宫尽头不停闪烁，小人碰到它就置 reached=1 并广播 win"
+        },
+        {
+          "name": "ArrowHint",
+          "asset": "@official:Arrow1",
+          "duty": "在起点旁扇动，提示玩家第一步该往哪个方向走"
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "type": "ending",
+      "goal": "宣布是否摸到宝箱以及剩了多少秒，然后广播 game_end 把一切复位",
+      "backdrop": "Spotlight",
+      "interaction": "auto",
+      "dialogue": [
+        "宝箱抱回营地了，帐篷里的人全围过来看。",
+        "还剩不少时间——下次可以试试绕更短的那条缝。",
+        "再点一次绿旗，迷雾会重新铺满整片迷宫。"
+      ],
+      "next": "game_end",
+      "sprites": [
+        {
+          "name": "CaptainEnd",
+          "asset": "@official:Devin",
+          "duty": "站在聚光灯下说出本局结果（找到/没找到、剩余秒数），说完广播 game_end"
+        },
+        {
+          "name": "CampFireGlow",
+          "asset": "@official:Balloon1",
+          "duty": "在结算画面上下飘动，成功时连飘三次、失败时停在角落"
+        }
+      ]
+    }
+  ]
+}

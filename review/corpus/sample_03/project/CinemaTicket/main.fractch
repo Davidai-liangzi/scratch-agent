@@ -1,0 +1,11 @@
+costume "Arrow1" file "assets/CinemaTicket.svg" center 28,23;
+// CinemaTicket: decoration for cinema_entrance
+when broadcast scene_cinema_entrance {
+    show;
+    goto 0, 0;
+    set_size 50;
+}
+
+when flag {
+    hide;
+}

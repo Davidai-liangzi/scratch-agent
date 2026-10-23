@@ -1,0 +1,100 @@
+{
+  "status": "rejected",
+  "reason": "max_rounds",
+  "rounds": [
+    {
+      "round": 1,
+      "must": [
+        {
+          "id": "M4",
+          "symptom": "疑似卡死：连续 814 帧线程在跑但状态零变化",
+          "evidence": {
+            "frames": 814,
+            "threshold": 120
+          },
+          "route": 0
+        },
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "scene_end"
+            ],
+            "sent": [
+              "scene_intro",
+              "scene_quiz"
+            ]
+          },
+          "route": 0
+        },
+        {
+          "id": "S3",
+          "symptom": "通关类项目没能走到结算画面 scene_end",
+          "evidence": {
+            "route": "未强制路线"
+          },
+          "route": 0
+        }
+      ],
+      "should": [
+        {
+          "id": "C3",
+          "symptom": "收尾信号 game_end 未广播（结算画面已到达，不阻断）",
+          "evidence": {},
+          "route": 0
+        }
+      ],
+      "frames": 990
+    }
+  ],
+  "must": [
+    {
+      "id": "M4",
+      "symptom": "疑似卡死：连续 814 帧线程在跑但状态零变化",
+      "evidence": {
+        "frames": 814,
+        "threshold": 120
+      },
+      "route": 0
+    },
+    {
+      "id": "M7",
+      "symptom": "设计文档要求的幕链在实跑中没有走到",
+      "evidence": {
+        "missing": [
+          "scene_end"
+        ],
+        "sent": [
+          "scene_intro",
+          "scene_quiz"
+        ]
+      },
+      "route": 0
+    },
+    {
+      "id": "S3",
+      "symptom": "通关类项目没能走到结算画面 scene_end",
+      "evidence": {
+        "route": "未强制路线"
+      },
+      "route": 0
+    }
+  ],
+  "should": [
+    {
+      "id": "C3",
+      "symptom": "收尾信号 game_end 未广播（结算画面已到达，不阻断）",
+      "evidence": {},
+      "route": 0
+    }
+  ],
+  "slices": [
+    "广播:scene_end",
+    "路线未强制路线"
+  ],
+  "plan": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\review\\corpus\\sample_07\\plan.json",
+  "elapsed": 53.4,
+  "max_rounds": 1,
+  "timeout": 300
+}

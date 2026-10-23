@@ -1,0 +1,51 @@
+backdrop "Forest" file "assets/bd_0.png" center 240,180;
+backdrop "Savanna" file "assets/bd_1.png" center 240,180;
+/* 舞台由装配器生成：全局变量 + 背景 + 场景切换 */
+var race_started = 0;
+var race_over = 0;
+var winner = "";
+watch var "race_started" at 10,10;
+watch var "race_over" at 10,40;
+
+// 绿旗：清零比赛状态，回到森林幕并启动开场
+when flag {
+    race_started = 0;
+    race_over = 0;
+    winner = "";
+    backdrop "Forest";
+    broadcast scene_intro;
+}
+
+// 开场幕：背景回到森林
+when broadcast scene_intro {
+    backdrop "Forest";
+}
+
+// 比赛幕：背景切到草原赛道
+when broadcast scene_quiz {
+    backdrop "Savanna";
+}
+
+// 发令后启动看门狗：万一没有选手按时跑到终点，也一定把颁奖幕推出来，保证整场演出收尾
+when broadcast race_start {
+    repeat 60 {
+        if race_over == 0 {
+            wait 0.25;
+        }
+    }
+    if race_over == 0 {
+        race_over = 1;
+        winner = "Hen";
+        broadcast scene_end;
+    }
+}
+
+// 颁奖幕：背景回到森林
+when broadcast scene_end {
+    backdrop "Forest";
+}
+
+// 演出结束：停掉所有脚本
+when broadcast game_end {
+    stop all;
+}

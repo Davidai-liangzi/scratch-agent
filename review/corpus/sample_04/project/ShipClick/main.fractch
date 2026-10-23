@@ -1,0 +1,30 @@
+costume "Rocketship" file "assets/Rocketship.svg" center 63,92;
+// ShipClick: the rocketship slides left-right with the mouse and dodges the dense meteor shower
+
+// green flag: stay hidden at the bottom centre of the stage until the barrage scene starts
+when flag {
+    hide;
+    set_size 45;
+    goto 0, -115;
+}
+
+// scene entry: park the ship at the bottom, deliver the barrage briefing in Chinese, then follow the mouse
+when broadcast scene_barrage {
+    show;
+    set_size 45;
+    set_x 0;
+    set_y -115;
+    say "陨石雨变密了，激光来不及，直接用鼠标点碎它们！" for 2;
+    say "点碎一颗同样加 1 分，攒满 10 分航道就安全了。" for 2.5;
+    forever {
+        if sensing.mousex() > 175 {
+            set_x 175;
+        } else if sensing.mousex() < -175 {
+            set_x -175;
+        } else {
+            set_x sensing.mousex();
+        }
+        set_y -115;
+        wait 0.03;
+    }
+}

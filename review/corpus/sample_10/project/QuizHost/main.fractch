@@ -1,0 +1,36 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Singer1" file "assets/Singer1.svg" center 75,75;
+// QuizHost：坐在营火边出题的主持人，玩家选完选项（或等一小会儿没人点）后公布总分，
+// 并且一定把大家带到结算（scene_end），保证幕链不会卡在提问这一幕。
+
+// 营火提问开始：主持人念题，选项同时出现；等一小会儿没人点就自动进入结算
+when broadcast scene_quiz {
+    goto 0, 95;
+    set_size 70;
+    clear_effects;
+    show;
+    playing = 1;
+    play_sound "Pop";
+    if score >= 8 {
+        say "总分 " ++ score ++ " 分！营火边最后一问：冒险营地里最受欢迎的乐器是什么？点一件。" for 1.5;
+    } else {
+        say "这一轮拿到 " ++ score ++ " 分。营火边最后一问：冒险营地里最受欢迎的乐器是什么？点一件。" for 1.5;
+    }
+    wait 0.5;
+    if playing == 1 {
+        playing = 0;
+        broadcast quiz_answered;
+    }
+}
+
+// 玩家已经点了选项（或超时）：短促报一句总分，立刻进入结算
+when broadcast quiz_answered {
+    wait 0.2;
+    if score >= 8 {
+        say "总分到 8 分了，营地的鼓点今晚就归你敲！" for 1;
+    } else {
+        say "分数还差一点，下一轮鼓点再补回来。" for 1;
+    }
+    hide;
+    broadcast scene_end;
+}

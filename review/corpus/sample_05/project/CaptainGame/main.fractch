@@ -1,0 +1,30 @@
+costume "Ripley" file "assets/Ripley.svg" center 57,89;
+// CaptainGame：缩在右上角的计时员，管二十秒倒计时，报剩余秒数，配一点倒计时音符。
+use "music";
+
+// 本幕开始：先把时钟上满二十秒，再一秒一秒往下数，收满三颗星星就退场。
+when broadcast scene_mini_game {
+    goto 150, 115;
+    set_size 50;
+    show;
+    time_left = 20;
+    wait 0.2;
+    until time_left <= 0 || sprites["StarItem"].vars["got"] >= 3 {
+        wait 1;
+        time_left -= 1;
+        music.playNoteForBeats(NOTE: 76, BEATS: 0.25);
+        if time_left > 0 {
+            say "还剩 " ++ time_left ++ " 秒，舱里已经收了 " ++ sprites["StarItem"].vars["got"] ++ " 颗星星。";
+        }
+    }
+    // 三颗星星收满就退场，把画面让给陨石带
+    if sprites["StarItem"].vars["got"] >= 3 {
+        hide;
+    } else {
+        say "倒计时归零了，掉头再飞这一趟。" for 1;
+    }
+}
+
+when flag {
+    hide;
+}

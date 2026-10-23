@@ -1,0 +1,31 @@
+sound "Cheer" file "assets/Cheer.wav";
+costume "referee-a" file "assets/referee-a.svg" center 44,63;
+costume "referee-b" file "assets/referee-b.svg" center 44,63;
+costume "referee-c" file "assets/referee-c.svg" center 55,62;
+costume "referee-d" file "assets/referee-d.svg" center 50,63;
+// CoachShoot — 站在投篮区边线上的老陈教练，负责讲清彩球规则并开场小游戏
+
+// 本幕主脚本：先在边线上讲三条规则，挥一下哨子，然后自动进入彩球小游戏
+when broadcast scene_station_shoot {
+    goto -120, -70;
+    set_size 70;
+    point 90;
+    costume "referee-a";
+    show;
+    wait 0.2;
+    say "这块地是投篮区，地板刚打过蜡，滑得很。" for 0.9;
+    costume "referee-b";
+    say "彩球就从这些地板缝里冒出来，一路往屋顶飘。" for 0.9;
+    costume "referee-c";
+    say "点破一个算一分，也可以按空格拍破一个。" for 0.9;
+    costume "referee-d";
+    play_sound "Cheer";
+    wait 0.2;
+    hide;
+    broadcast scene_mini_game;
+}
+
+// 绿旗：先躲起来，等投篮区幕广播
+when flag {
+    hide;
+}

@@ -1,0 +1,44 @@
+sound "Cheer" file "assets/Cheer.wav";
+costume "Singer1" file "assets/host.svg" center 75,75;
+// HostPlay：营地主持人。负责倒计时、轮流点亮三件乐器、报告分数与剩余秒数。
+use "music";
+var active = 0;
+
+// 收到 scene_play：重置本轮状态、讲清规则，然后每半秒换一件发光的乐器，直到 8 分或时间走完，
+// 结束后不再拖时间，立刻把玩家带到营火提问（scene_quiz），保证幕链一定能走完。
+when broadcast scene_play {
+    set_size 55;
+    goto -160, 110;
+    show;
+    score = 0;
+    time_left = 30;
+    playing = 1;
+    active = 0;
+    say "只有一件乐器在发光，点它才会加分。" for 1;
+    say "右上角的倒计时在走，攒够 8 分就过关。" for 1;
+    reset_timer;
+    while playing == 1 {
+        time_left = 30 - round(sensing.timer());
+        if time_left < 0 { time_left = 0; }
+        if time_left == 0 { playing = 0; }
+        if score >= 8 { playing = 0; }
+        if playing == 1 {
+            active += 1;
+            if active > 3 { active = 1; }
+            say "分数 " ++ score ++ " / 8    剩余 " ++ time_left ++ " 秒";
+            music.playDrumForBeats(DRUM: 1, BEATS: 0.25);
+        }
+        wait 0.5;
+    }
+    active = 0;
+    if score >= 8 {
+        play_sound "Cheer";
+    }
+    hide;
+    wait 0.3;
+    broadcast scene_quiz;
+}
+
+when flag {
+    hide;
+}

@@ -1,0 +1,47 @@
+backdrop "Stars" file "assets/bd_0.png" center 240,180;
+backdrop "Space City 2" file "assets/bd_1.png" center 240,180;
+backdrop "Neon Tunnel" file "assets/bd_2.png" center 240,180;
+backdrop "Nebula" file "assets/bd_3.png" center 240,180;
+/* 舞台由装配器生成：全局变量 + 背景 + 场景切换 */
+var score = 0;
+var time_left = 20;
+var playing = 1;
+watch var "score" at 10,10;
+watch var "time_left" at 10,40;
+watch var "playing" at 10,70;
+
+when flag {
+    score = 0;
+    time_left = 20;
+    playing = 1;
+    backdrop "Stars";
+    broadcast scene_intro;
+}
+
+when broadcast scene_intro {
+    backdrop "Stars";
+}
+
+when broadcast scene_route_choice {
+    backdrop "Space City 2";
+}
+
+when broadcast scene_station_bridge {
+    backdrop "Neon Tunnel";
+}
+
+when broadcast scene_mini_game {
+    backdrop "Nebula";
+}
+
+when broadcast scene_station_belt {
+    backdrop "Stars";
+}
+
+when broadcast scene_ending {
+    backdrop "Space City 2";
+}
+
+when broadcast game_end {
+    stop all;
+}

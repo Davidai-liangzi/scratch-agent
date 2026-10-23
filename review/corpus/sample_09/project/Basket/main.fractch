@@ -1,0 +1,61 @@
+sound "Cheer" file "assets/Cheer.wav";
+sound "Lose" file "assets/Lose.wav";
+costume "jar-a" file "assets/jar-a.svg" center 20,25;
+// Basket: the jar the player slides left and right to catch falling cakes; it also runs the 10 second countdown and closes the round.
+var said = 0;
+
+// when the play act starts: show the jar, start the countdown, move with the arrow keys and judge win or lose.
+when broadcast scene_play {
+    show;
+    set_size 70;
+    goto 0, -100;
+    said = 0;
+    time_left = 10;
+    reset_timer;
+    say "蛋糕开始掉了！按住左右方向键移动篮子。";
+    until playing == 0 {
+        if sensing.keypressed(KEY_OPTION: sensing.keyoptions("left arrow")) {
+            change_x -12;
+        }
+        if sensing.keypressed(KEY_OPTION: sensing.keyoptions("right arrow")) {
+            change_x 12;
+        }
+        if motion.xposition() < -185 {
+            set_x -185;
+        }
+        if motion.xposition() > 185 {
+            set_x 185;
+        }
+        time_left = 10 - round(sensing.timer());
+        if time_left < 0 {
+            time_left = 0;
+        }
+        if said == 0 {
+            if sensing.timer() > 2.5 {
+                said = 1;
+                say "接满 3 个马上通关，漏满 3 个就直接结束。";
+            }
+        }
+        if score >= 3 {
+            playing = 0;
+        }
+        if misses >= 3 {
+            playing = 0;
+        }
+        if time_left <= 0 {
+            playing = 0;
+        }
+        wait 0.05;
+    }
+    hide;
+    if score >= 3 {
+        play_sound_until_done "Cheer";
+    } else {
+        play_sound "Lose";
+    }
+    broadcast scene_end;
+}
+
+when flag {
+    hide;
+}

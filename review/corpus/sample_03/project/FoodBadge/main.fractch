@@ -1,0 +1,11 @@
+costume "Orange2" file "assets/FoodBadge.svg" center 49,24;
+// FoodBadge: decoration for food_entrance
+when broadcast scene_food_entrance {
+    show;
+    goto 0, 0;
+    set_size 50;
+}
+
+when flag {
+    hide;
+}

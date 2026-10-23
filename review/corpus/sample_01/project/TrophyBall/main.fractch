@@ -1,0 +1,19 @@
+sound "Pop" file "assets/Pop.wav";
+costume "beachball" file "assets/beachball.svg" center 34,33;
+// TrophyBall: the victory beachball that spins beside the coach during the ending
+
+// Entry for the ending scene: pop up next to the coach and spin while the coach reports the score
+when broadcast scene_ending {
+    show;
+    goto 155, 10;
+    set_size 55;
+    costume "beachball";
+    if score >= 5 {
+        play_sound "Pop";
+    }
+    repeat 70 {
+        turn 14;
+        wait 0.07;
+    }
+    hide;
+}

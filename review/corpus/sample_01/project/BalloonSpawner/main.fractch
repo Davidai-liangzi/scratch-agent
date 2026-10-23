@@ -1,0 +1,69 @@
+costume "Beachball" file "assets/Beachball.svg" center 34,33;
+sound "Pop" file "assets/Pop.wav";
+// BalloonSpawner: 彩球模板；克隆出往上飘的彩球，点中就破，飘出屋顶也会自己破掉并记一分（保底涨分）
+var bx = 0;
+var popping = 0;
+
+// 小游戏幕开始：藏起模板，缩成彩球大小
+when broadcast scene_mini_game {
+    hide;
+    set_size 35;
+}
+
+// 教练放开彩球：一直生成到时间归零或攒够 5 分
+when broadcast start_spawn {
+    popping = 1;
+    until time_left <= 0 || score >= 5 {
+        clone;
+        wait 0.4;
+    }
+}
+
+// 小游戏结束：关掉计分，剩下的彩球自己消失
+when broadcast scene_station_court {
+    popping = 0;
+}
+
+// 每个克隆体：从地板升到屋顶；飘到屋顶也算一分，然后自己删除
+when clone {
+    bx = random(-170, 170);
+    set_x bx;
+    set_y -140;
+    set_size 35;
+    show;
+    until motion.yposition() > 140 || popping == 0 {
+        change_y 7;
+        wait 0.05;
+    }
+    if popping == 1 && score < 5 && time_left > 0 {
+        score += 1;
+        play_sound "Pop";
+        broadcast got_point;
+    }
+    delete_clone;
+}
+
+// 点中彩球：加一分、响一声、通知教练，这颗球消失
+when clicked {
+    if popping == 1 && score < 5 && time_left > 0 {
+        score += 1;
+        play_sound "Pop";
+        broadcast got_point;
+        delete_clone;
+    }
+}
+
+// 按空格也能拍破一颗彩球：加一分、响一声
+when key space {
+    if popping == 1 && score < 5 && time_left > 0 {
+        score += 1;
+        play_sound "Pop";
+        broadcast got_point;
+    }
+}
+
+// 绿旗：藏起模板并关掉计分
+when flag {
+    hide;
+    popping = 0;
+}

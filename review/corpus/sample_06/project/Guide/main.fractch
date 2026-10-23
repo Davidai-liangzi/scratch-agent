@@ -1,0 +1,31 @@
+costume "Pico walk1" file "assets/Pico walk1.svg" center 54,71;
+costume "Pico walk2" file "assets/Pico walk2.svg" center 54,71;
+costume "Pico walk3" file "assets/Pico walk3.svg" center 54,70;
+costume "Pico walk4" file "assets/Pico walk4.svg" center 54,70;
+sound "Pop" file "assets/Pop.wav";
+// Guide：梦想乐园的领路探险家，负责讲解规则并带玩家进入秘密角落。
+// 进入本幕：站到画面左侧，念出乐园规则，然后原地小幅度走动等待玩家点击。
+when broadcast scene_intro {
+    goto -100, -20;
+    set_size 90;
+    costume "Pico walk1";
+    show;
+    say "我是梦想乐园的领路探险家，乐园深处藏着一条只有答完三道谜题才能走完的路。" for 1.5;
+    say "先跟我去林子里的秘密角落，那儿有 8 颗星星等着被点亮——点我一下，我们就出发。";
+    forever {
+        next_costume;
+        wait 0.3;
+    }
+}
+
+// 被点击：欢呼一声，收起角色并广播下一幕（秘密角落）。
+when clicked {
+    play_sound "Pop";
+    say "好嘞，跟紧我，秘密角落就在前面！" for 1;
+    hide;
+    broadcast scene_station;
+}
+
+when flag {
+    hide;
+}

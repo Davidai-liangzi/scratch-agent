@@ -1,0 +1,24 @@
+costume "Dragon" file "assets/dragon.svg" center 124.12215277545062,106.25815347723332;
+// ForestGuideEnd: the forest dragon guide announces the champion of the race next to the finish heart.
+sound "Cheer" file "assets/Cheer.wav";
+
+// On the ending scene: step beside the podium, cheer, then name the winner and hand over.
+when broadcast scene_end {
+    set_size 55;
+    motion.setrotationstyle(STYLE: "left-right");
+    goto 135, 55;
+    point -90;
+    show;
+    wait 0.5;
+    play_sound "Cheer";
+    say "冠军是 " ++ winner ++ "！它先碰到了终点心。" for 2;
+    say "Penguin、Hen 和 Puppy 都跑完了全程，森林里响起一片欢呼。" for 2;
+    say "点绿旗可以让它们再跑一场。" for 1.5;
+    wait 0.5;
+    hide;
+    broadcast game_end;
+}
+
+when flag {
+    hide;
+}

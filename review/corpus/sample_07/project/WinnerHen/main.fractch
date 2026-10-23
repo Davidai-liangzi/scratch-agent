@@ -1,0 +1,22 @@
+costume "Hen" file "assets/hen.svg" center 60,53;
+// WinnerHen: Hen stands on the podium only if it touched the finish heart first.
+
+// On the ending scene: show on the podium when Hen is the champion, otherwise stay hidden.
+when broadcast scene_end {
+    set_size 55;
+    goto 0, -35;
+    point 90;
+    if winner == "Hen" {
+        show;
+        repeat 4 {
+            next_costume;
+            wait 0.2;
+        }
+    } else {
+        hide;
+    }
+}
+
+when flag {
+    hide;
+}

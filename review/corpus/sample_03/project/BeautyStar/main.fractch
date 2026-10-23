@@ -1,0 +1,11 @@
+costume "Party Hats" file "assets/BeautyStar.svg" center 24,55;
+// BeautyStar: decoration for beauty_entrance
+when broadcast scene_beauty_entrance {
+    show;
+    goto 0, 0;
+    set_size 50;
+}
+
+when flag {
+    hide;
+}

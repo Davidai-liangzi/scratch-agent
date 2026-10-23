@@ -1,0 +1,156 @@
+{
+  "title": "动物森林打地鼠",
+  "theme": "动物森林里的打地鼠小游戏",
+  "player_verb": "用鼠标点击从草丛洞口随机冒出来的地鼠，冒出后 3 秒内点中才算分",
+  "win": {
+    "type": "score",
+    "value": 5,
+    "text": "30 秒结束时得分达到 5 分（打地鼠得分 + 问答加分）就算通过"
+  },
+  "lose": {
+    "type": "time",
+    "value": 0,
+    "text": "30 秒倒计时归零时得分还不到 5 分，这一轮就是失败"
+  },
+  "backdrops": [
+    {
+      "name": "Forest",
+      "kind": "official",
+      "asset": "@official:Forest"
+    },
+    {
+      "name": "Jungle",
+      "kind": "official",
+      "asset": "@official:Jungle"
+    },
+    {
+      "name": "Savanna",
+      "kind": "official",
+      "asset": "@official:Savanna"
+    }
+  ],
+  "globals": [
+    {
+      "name": "score",
+      "init": "0"
+    },
+    {
+      "name": "time_left",
+      "init": "30"
+    },
+    {
+      "name": "quiz_right",
+      "init": "0"
+    }
+  ],
+  "router_sprite": "",
+  "routes": [],
+  "beats": [
+    {
+      "id": "intro",
+      "type": "intro",
+      "goal": "小鹿说明草丛下有偷果子的地鼠，玩家点它胸前的爱心开始 30 秒挑战",
+      "backdrop": "Forest",
+      "interaction": "click",
+      "dialogue": [
+        "这片草丛下面住着一窝爱吃果子的小地鼠，它们一冒头就会偷走一颗。",
+        "点一下我怀里跳动的这颗心，30 秒倒计时就开始了，看你能按住几只。"
+      ],
+      "next": "mini_game",
+      "sprites": [
+        {
+          "name": "GuideDeer",
+          "asset": "@official:Reindeer",
+          "duty": "站在舞台左下角讲规则，讲完后轻轻点头，等玩家点爱心"
+        },
+        {
+          "name": "StartHeart",
+          "asset": "@official:Heart",
+          "duty": "在舞台正中偏右上下浮动的一颗红心按钮，被点击后广播开始计时"
+        }
+      ]
+    },
+    {
+      "id": "mini_game",
+      "type": "mini_game",
+      "goal": "30 秒内点中至少 5 只随机冒头的地鼠，每点中一只加 1 分",
+      "backdrop": "Forest",
+      "interaction": "click",
+      "dialogue": [
+        "地鼠会从左右两个洞口轮流冒头，冒出来那一小会儿点它才算数。",
+        "缩回去再点就白点啦，每按中一只，左上角就多 1 分。"
+      ],
+      "next": "quiz",
+      "sprites": [
+        {
+          "name": "MoleA",
+          "asset": "@official:Mouse1",
+          "duty": "在左侧洞口随机冒出、停留约 2 秒再缩回去，被点中加 1 分并说一句吐槽"
+        },
+        {
+          "name": "MoleB",
+          "asset": "@official:Hedgehog",
+          "duty": "在右侧洞口随机冒出，与左侧轮流出现，被点中也加 1 分"
+        },
+        {
+          "name": "CountdownPenguin",
+          "asset": "@official:Penguin",
+          "duty": "守在左上角报剩余秒数，倒计时归零就广播结束小游戏"
+        }
+      ]
+    },
+    {
+      "id": "quiz",
+      "type": "quiz",
+      "goal": "回答刚才替你数倒计时的是哪只小动物（企鹅），答对再加 1 分",
+      "backdrop": "Jungle",
+      "interaction": "click",
+      "dialogue": [
+        "刚才打地鼠的时候，有一只小动物一直守在左上角帮你数秒。",
+        "两张卡片里点出它，答对了天上再掉 1 分。"
+      ],
+      "next": "ending",
+      "sprites": [
+        {
+          "name": "QuizDeer",
+          "asset": "@official:Reindeer",
+          "duty": "在舞台上方出题，两边的答案卡片由它介绍"
+        },
+        {
+          "name": "AnswerPenguin",
+          "asset": "@official:Penguin",
+          "duty": "左边的正确卡片（企鹅），被点中后加 1 分并消失"
+        },
+        {
+          "name": "AnswerMonkey",
+          "asset": "@official:Monkey",
+          "duty": "右边的错误卡片（猴子），被点中后摇头、不加分并消失"
+        }
+      ]
+    },
+    {
+      "id": "ending",
+      "type": "ending",
+      "goal": "展示最终得分，告诉玩家是否达到 5 分，并提示点绿旗重新挑战",
+      "backdrop": "Savanna",
+      "interaction": "auto",
+      "dialogue": [
+        "这一轮结束啦，你按住的地鼠分数已经写在舞台左上角。",
+        "拿到 5 分以上就是森林捕鼠王，点绿旗还能再守一次草丛。"
+      ],
+      "next": "game_end",
+      "sprites": [
+        {
+          "name": "EndDeer",
+          "asset": "@official:Reindeer",
+          "duty": "自动走出来念结束语，根据分数说鼓励或惋惜的话"
+        },
+        {
+          "name": "EndStar",
+          "asset": "@official:Starfish",
+          "duty": "在结算画面上转圈闪烁，作为成绩的装饰"
+        }
+      ]
+    }
+  ]
+}

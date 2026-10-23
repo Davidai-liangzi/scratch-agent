@@ -1,0 +1,34 @@
+costume "puppy right" file "assets/puppy_right.png" center 107,103;
+costume "puppy side" file "assets/puppy_side.png" center 104,114;
+// StartPuppy：起跑线后摇尾巴的小狗，同时负责本幕那段轻快的背景旋律。
+use "music";
+
+// 幕开始：站到起跑线后摇尾巴，并循环播放背景旋律（比赛真正开跑后停下）
+when broadcast scene_intro {
+    show;
+    goto 95, -78;
+    set_size 40;
+    costume "puppy right";
+    forever {
+        if race_started == 1 { return; }
+        music.playNoteForBeats(NOTE: 60, BEATS: 0.35);
+        next_costume;
+        wait 0.35;
+        music.playNoteForBeats(NOTE: 64, BEATS: 0.35);
+        wait 0.35;
+        music.playNoteForBeats(NOTE: 67, BEATS: 0.35);
+        next_costume;
+        wait 0.35;
+        music.playNoteForBeats(NOTE: 72, BEATS: 0.35);
+        wait 0.35;
+    }
+}
+
+// 比赛场景开始：躲到幕后，把赛道让给 PuppyRacer
+when broadcast scene_quiz {
+    hide;
+}
+
+when flag {
+    hide;
+}

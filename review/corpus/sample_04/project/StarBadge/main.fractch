@@ -1,0 +1,24 @@
+sound "Coin" file "assets/Coin.wav";
+costume "Star" file "assets/star.svg" center 22,23;
+// StarBadge：右上角的胜利徽章，攒满 10 分才亮起并转圈闪烁，没达标就藏起来
+
+// 收到结算幕广播：按最终分数决定显示还是隐藏，胜利时在右上角旋转闪烁一会儿
+when broadcast scene_end {
+    goto 150, 110;
+    set_size 45;
+    if score >= 10 {
+        show;
+        play_sound "Coin";
+        repeat 60 {
+            turn 15;
+            change_effect brightness by 10;
+            wait 0.1;
+        }
+    } else {
+        hide;
+    }
+}
+
+when flag {
+    hide;
+}

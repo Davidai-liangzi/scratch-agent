@@ -1,0 +1,38 @@
+backdrop "Theater 2" file "assets/bd_0.png" center 240,180;
+backdrop "Concert" file "assets/bd_1.png" center 240,180;
+backdrop "Spotlight" file "assets/bd_2.png" center 240,180;
+/* 舞台由装配器生成：全局变量 + 背景 + 场景切换 */
+var score = 0;
+var time_left = 30;
+var playing = 0;
+watch var "score" at 10,10;
+watch var "time_left" at 10,40;
+watch var "playing" at 10,70;
+
+when flag {
+    score = 0;
+    time_left = 30;
+    playing = 0;
+    backdrop "Theater 2";
+    broadcast scene_intro;
+}
+
+when broadcast scene_intro {
+    backdrop "Theater 2";
+}
+
+when broadcast scene_play {
+    backdrop "Concert";
+}
+
+when broadcast scene_quiz {
+    backdrop "Theater 2";
+}
+
+when broadcast scene_end {
+    backdrop "Spotlight";
+}
+
+when broadcast game_end {
+    stop all;
+}

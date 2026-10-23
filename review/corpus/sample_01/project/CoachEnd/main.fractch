@@ -1,0 +1,30 @@
+sound "Cheer" file "assets/Cheer.wav";
+costume "referee-a" file "assets/referee-a.svg" center 44,63;
+costume "referee-c" file "assets/referee-c.svg" center 55,62;
+sound "Lose" file "assets/Lose.wav";
+// CoachEnd: 站在中圈报出真实彩球数，赢/输分开说，然后收场
+
+// 结局幕入口：按分数分支，如实报数，然后交给 game_end
+when broadcast scene_ending {
+    show;
+    goto -115, -10;
+    set_size 90;
+    costume "referee-a";
+    if score >= 5 {
+        // 胜利分支
+        play_sound "Cheer";
+        say "5 分到手！馆里的灯都跟着闪了一下。" for 1;
+        costume "referee-c";
+        say "计分板停在 " ++ score ++ " 分，地板缝里还卡着几片彩球皮。" for 1;
+    } else {
+        // 失败分支
+        play_sound "Lose";
+        say "只点破 " ++ score ++ " 个，还差那么几个，下次手再快点。" for 1;
+        costume "referee-c";
+        say "别泄气，地板缝里的彩球明天还会冒出来。" for 1;
+    }
+    costume "referee-a";
+    say "想再打一场，点绿旗就行，我在这儿等你。" for 1;
+    hide;
+    broadcast game_end;
+}

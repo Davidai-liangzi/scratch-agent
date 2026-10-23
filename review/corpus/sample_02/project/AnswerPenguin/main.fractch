@@ -1,0 +1,31 @@
+sound "Coin" file "assets/Coin.wav";
+costume "penguin-a" file "assets/penguin-a.svg" center 36,46;
+// AnswerPenguin — 左边的正确卡片（企鹅）：被点中加 1 分并广播进入结算
+
+// 收到 scene_quiz：出现在左边卡片位置，一直等人作答，之后缩回幕后
+when broadcast scene_quiz {
+    set_size 50;
+    goto -80, -20;
+    show;
+    until quiz_right == 1 {
+        wait 0.2;
+    }
+    wait 1.5;
+    hide;
+}
+
+// 被点击：如果还没人作答，就判定答对，加 1 分并进入下一幕
+when clicked {
+    if quiz_right == 0 {
+        quiz_right = 1;
+        score += 1;
+        play_sound "Coin";
+        say "答对啦！就是我一直守在左上角，一秒一秒帮你数着。" for 1.4;
+        wait 0.4;
+        broadcast scene_ending;
+    }
+}
+
+when flag {
+    hide;
+}

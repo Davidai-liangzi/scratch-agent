@@ -1,0 +1,31 @@
+sound "Coin" file "assets/Coin.wav";
+costume "Drums Tabla" file "assets/Drums Tabla.svg" center 79,67;
+// AnsDrum：营火左边的选项，这面手鼓就是本幕的正确答案
+
+// 进入营火提问：手鼓站到左边，等待被点
+when broadcast scene_quiz {
+    goto -110, -65;
+    set_size 85;
+    clear_effects;
+    show;
+}
+
+// 被点中：还没人选过时，手鼓就是正确答案，加 1 分，并先广播 quiz_answered 再说话，避免台词把幕链拖住
+when clicked {
+    if playing == 1 {
+        playing = 0;
+        score += 1;
+        play_sound "Coin";
+        broadcast quiz_answered;
+        say "对，就是手鼓！营火边谁都能跟着它敲两下，补你 1 分。" for 2;
+    }
+}
+
+// 题目答完：两个选项都离开营火
+when broadcast quiz_answered {
+    hide;
+}
+
+when flag {
+    hide;
+}

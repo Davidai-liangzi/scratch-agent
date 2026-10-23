@@ -1,0 +1,28 @@
+costume "penguin-a" file "assets/penguin-a.svg" center 36,46;
+costume "penguin-b" file "assets/penguin-b.svg" center 26,46;
+costume "penguin-c" file "assets/penguin-c.svg" center 35,46;
+// StartPenguin：起跑线后的企鹅，原地跺脚扇翅膀等着开跑，比赛一开始就把位置让给 PenguinRacer。
+
+// 幕开始：站到起跑线后，一下一下跺脚等待
+when broadcast scene_intro {
+    show;
+    goto -95, -78;
+    set_size 40;
+    costume "penguin-a";
+    repeat 18 {
+        next_costume;
+        change_y -4;
+        wait 0.2;
+        change_y 4;
+        wait 0.2;
+    }
+}
+
+// 比赛场景开始：躲到幕后，把赛道让给 PenguinRacer
+when broadcast scene_quiz {
+    hide;
+}
+
+when flag {
+    hide;
+}

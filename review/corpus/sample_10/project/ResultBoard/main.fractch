@@ -1,0 +1,13 @@
+sound "Coin" file "assets/Coin.wav";
+costume "Laptop" file "assets/Laptop.svg" center 75,75;
+// ResultBoard: the camp scoreboard (laptop). It sits in the top-right corner, shows the score for 1.5 seconds, then hides.
+
+// On this scene's opening broadcast: flash the final score briefly in the top-right corner and get out of the way.
+when broadcast scene_end {
+    show;
+    goto 130, 85;
+    set_size 45;
+    play_sound "Coin";
+    say "Score " ++ score ++ " / 8" for 1.5;
+    hide;
+}

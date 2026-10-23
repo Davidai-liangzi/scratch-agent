@@ -1,0 +1,31 @@
+sound "Cheer" file "assets/Cheer.wav";
+costume "Penguin" file "assets/Penguin.svg" center 36,46;
+// CountdownPenguin：守在舞台左上角报剩余秒数的企鹅，30 秒归零或按住 5 只地鼠就广播进入问答幕
+
+// 本幕开始：先讲清打地鼠的规则，然后一秒一秒倒计时；分数够 5 分或时间归零就收工进下一幕
+when broadcast scene_mini_game {
+    set_size 55;
+    goto -170, 110;
+    show;
+    say "地鼠会从左右两个洞口轮流冒头，冒出来那一小会儿点它才算数。" for 2;
+    say "缩回去再点就白点啦，每按中一只，左上角就多 1 分，凑够 5 分就提前获胜。" for 2;
+    while time_left > 0 && score < 5 {
+        time_left -= 1;
+        say "还剩 " ++ time_left ++ " 秒";
+        wait 1;
+    }
+    time_left = 0;
+    if score >= 5 {
+        say "已经按住 5 只地鼠啦，挑战提前完成！";
+    } else {
+        say "时间到！地鼠们全钻回洞里了。";
+    }
+    wait 1;
+    play_sound "Cheer";
+    hide;
+    broadcast scene_quiz;
+}
+
+when flag {
+    hide;
+}

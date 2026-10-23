@@ -1,0 +1,11 @@
+costume "Kenney Customer" file "assets/FoodHelper.png" center 48,48;
+// FoodHelper: decoration for food_game
+when broadcast scene_food_game {
+    show;
+    goto 0, 0;
+    set_size 50;
+}
+
+when flag {
+    hide;
+}

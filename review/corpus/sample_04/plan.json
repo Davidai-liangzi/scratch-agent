@@ -1,0 +1,193 @@
+{
+  "title": "飞船激光打陨石：清空小行星带",
+  "theme": "太空射击——驾驶飞船击碎不断下落的陨石",
+  "player_verb": "移动鼠标让飞船跟着走，按空格发射激光击碎陨石；第四幕改为直接用鼠标点击陨石。",
+  "win": {
+    "type": "score",
+    "value": 10,
+    "text": "打碎 10 颗陨石、累积 10 分，小行星带航道被清空，任务成功"
+  },
+  "lose": {
+    "type": "time",
+    "value": 45,
+    "text": "45 秒计时结束还没攒够 10 分，空间站被碎石击中，任务失败"
+  },
+  "backdrops": [
+    {
+      "name": "Space",
+      "kind": "official",
+      "asset": "@official:Space"
+    },
+    {
+      "name": "Nebula",
+      "kind": "official",
+      "asset": "@official:Nebula"
+    },
+    {
+      "name": "Stars",
+      "kind": "official",
+      "asset": "@official:Stars"
+    },
+    {
+      "name": "Galaxy",
+      "kind": "official",
+      "asset": "@official:Galaxy"
+    },
+    {
+      "name": "Moon",
+      "kind": "official",
+      "asset": "@official:Moon"
+    }
+  ],
+  "globals": [
+    {
+      "name": "score",
+      "init": "0"
+    },
+    {
+      "name": "time_left",
+      "init": "45"
+    },
+    {
+      "name": "playing",
+      "init": "1"
+    }
+  ],
+  "router_sprite": "GuideBot",
+  "routes": [],
+  "beats": [
+    {
+      "id": "intro",
+      "type": "intro",
+      "goal": "点击太空站指挥官，接受清空小行星带的任务",
+      "backdrop": "Space",
+      "interaction": "click",
+      "dialogue": [
+        "警报！小行星带正朝空间站飘过来，航道快被堵死了。",
+        "移动鼠标驾驶飞船，按空格发射激光，把挡路的陨石碎掉。",
+        "点我一下，立刻出发。"
+      ],
+      "next": "brief",
+      "sprites": [
+        {
+          "name": "GuideBot",
+          "asset": "@official:Robot",
+          "duty": "站在舞台中央讲解任务，被点击后广播开始、切到下一幕"
+        },
+        {
+          "name": "DriftRock",
+          "asset": "@official:Rocks",
+          "duty": "在背景里缓慢飘过，示意陨石的样子，不参与计分"
+        }
+      ]
+    },
+    {
+      "id": "brief",
+      "type": "station",
+      "goal": "看懂碎石带的规则：陨石从上往下落，碎一颗记 1 分，攒够 10 分通关",
+      "backdrop": "Nebula",
+      "interaction": "auto",
+      "dialogue": [
+        "这里是碎石带边缘，陨石会一批一批从屏幕上方往下掉。",
+        "激光打碎一颗陨石记 1 分，攒够 10 分航道就通了。",
+        "看，像这样一颗掉下来——别让它撞到你。"
+      ],
+      "next": "shoot",
+      "sprites": [
+        {
+          "name": "GuideBrief",
+          "asset": "@official:Robot",
+          "duty": "自动逐句讲解规则，讲完广播进入射击环节"
+        },
+        {
+          "name": "CometDemo",
+          "asset": "@official:Rocks",
+          "duty": "从上往下缓慢滑落一颗示例陨石，演示掉落路线后消失"
+        }
+      ]
+    },
+    {
+      "id": "shoot",
+      "type": "mini_game",
+      "goal": "飞船跟随鼠标左右移动，按空格发射子弹，击碎落下的陨石，每碎一颗加 1 分",
+      "backdrop": "Stars",
+      "interaction": "key",
+      "dialogue": [
+        "飞船跟着你的鼠标走，按空格开火！",
+        "每打碎一颗陨石加 1 分，先把分数拉到 10。"
+      ],
+      "next": "barrage",
+      "sprites": [
+        {
+          "name": "Ship",
+          "asset": "@official:Rocketship",
+          "duty": "贴着鼠标水平移动，按空格从船头射出一发激光"
+        },
+        {
+          "name": "Meteor",
+          "asset": "@official:Rocks",
+          "duty": "不断在舞台上方随机位置克隆生成并往下落，被激光或飞船碰到即碎、加分"
+        },
+        {
+          "name": "HudStar",
+          "asset": "@official:Star",
+          "duty": "缩在左上角显示当前分数，不挡鼠标点击"
+        }
+      ]
+    },
+    {
+      "id": "barrage",
+      "type": "mini_game",
+      "goal": "陨石雨变密，改用鼠标直接点碎陨石，继续把总分推到 10 分",
+      "backdrop": "Galaxy",
+      "interaction": "click",
+      "dialogue": [
+        "陨石雨变密了，激光来不及，直接用鼠标点碎它们！",
+        "点碎一颗同样加 1 分，攒满 10 分航道就安全了。"
+      ],
+      "next": "end",
+      "sprites": [
+        {
+          "name": "ShipClick",
+          "asset": "@official:Rocketship",
+          "duty": "停在画面下方偏左，跟着鼠标左右移动躲避落石"
+        },
+        {
+          "name": "MeteorClick",
+          "asset": "@official:Rocks",
+          "duty": "密集克隆下落，被鼠标点中时炸开、加 1 分并消失，过一会儿再刷新"
+        },
+        {
+          "name": "HudStar2",
+          "asset": "@official:Star",
+          "duty": "缩在左上角继续显示分数，提示还差几分"
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "type": "ending",
+      "goal": "结算分数：达到 10 分宣布航道清空，否则报告任务失败，绿旗重来",
+      "backdrop": "Moon",
+      "interaction": "auto",
+      "dialogue": [
+        "航道清空了！这一趟你一共打碎了好几颗陨石，空间站安全了。",
+        "看看左上角的分数，满 10 分就是满分通关。",
+        "想再飞一次，点绿旗重新出发。"
+      ],
+      "next": "game_end",
+      "sprites": [
+        {
+          "name": "GuideEnd",
+          "asset": "@official:Robot",
+          "duty": "飞到画面中央说出结算台词，读出最终分数后广播 game_end"
+        },
+        {
+          "name": "StarBadge",
+          "asset": "@official:Star",
+          "duty": "在右上角旋转闪烁，胜利时出现、失败时隐藏"
+        }
+      ]
+    }
+  ]
+}

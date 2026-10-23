@@ -1,0 +1,26 @@
+sound "Pop" file "assets/Pop.wav";
+costume "beachball" file "assets/beachball.svg" center 34,33;
+// BallPreview — 那颗示范用的沙滩球，演示彩球怎么从地板缝里一路往上飘
+use "music";
+
+// 本幕主脚本：从地板上慢慢升到半空再落回去，来回三趟，让玩家看清彩球的走向
+when broadcast scene_station_shoot {
+    costume "beachball";
+    set_size 45;
+    motion.setrotationstyle(STYLE: "don't rotate");
+    goto 110, -110;
+    show;
+    repeat 3 {
+        play_sound "Pop";
+        motion.glidesecstoxy(SECS: 1.5, X: 110, Y: 50);
+        music.playNoteForBeats(NOTE: 72, BEATS: 0.25);
+        wait 0.3;
+        motion.glidesecstoxy(SECS: 1.5, X: 110, Y: -110);
+        wait 0.2;
+    }
+    hide;
+}
+
+when flag {
+    hide;
+}

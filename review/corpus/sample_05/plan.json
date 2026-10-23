@@ -1,0 +1,220 @@
+{
+  "title": "银河边境：舰长 Ripley 的星图航线",
+  "theme": "太空剧情冒险：跟着舰长在银河边境的三处站点听讲解、收星星与能量块",
+  "player_verb": "用鼠标点选星图上的光点推进剧情，在指挥舱和陨石带按空格操作，小游戏里用左右方向键挪动飞船并按空格收星星",
+  "win": {
+    "type": "score",
+    "value": 6,
+    "text": "整段航程里收齐 3 颗星星和 3 块能量块，累计 6 分，飞船顺利穿过陨石带"
+  },
+  "lose": {
+    "type": "time",
+    "value": 0,
+    "text": "小游戏里的 20 秒倒计时走完，星星还没收满 3 颗，这次航行只能返航重来"
+  },
+  "backdrops": [
+    {
+      "name": "Stars",
+      "kind": "official",
+      "asset": "@official:Stars"
+    },
+    {
+      "name": "Space City 2",
+      "kind": "official",
+      "asset": "@official:Space City 2"
+    },
+    {
+      "name": "Neon Tunnel",
+      "kind": "official",
+      "asset": "@official:Neon Tunnel"
+    },
+    {
+      "name": "Nebula",
+      "kind": "official",
+      "asset": "@official:Nebula"
+    }
+  ],
+  "globals": [
+    {
+      "name": "score",
+      "init": "0"
+    },
+    {
+      "name": "time_left",
+      "init": "20"
+    },
+    {
+      "name": "playing",
+      "init": "1"
+    }
+  ],
+  "router_sprite": "CaptainIntro",
+  "routes": [],
+  "beats": [
+    {
+      "id": "intro",
+      "type": "intro",
+      "goal": "开场：舰长 Ripley 在星海前交代这次银河边境航行的目标——听讲解、收星星、穿过陨石带",
+      "backdrop": "Stars",
+      "interaction": "auto",
+      "dialogue": [
+        "边境的星星今晚特别亮，巡逻队刚把这条航道让出来。",
+        "我是舰长 Ripley，跟着我的探照灯走，别掉队。"
+      ],
+      "next": "route_choice",
+      "sprites": [
+        {
+          "name": "CaptainIntro",
+          "asset": "@official:Ripley",
+          "duty": "站在左下角逐句讲开场白，讲完自动推进到星图选择"
+        },
+        {
+          "name": "ShipIntro",
+          "asset": "@official:Rocketship",
+          "duty": "停在右侧缓慢左右漂移，交代飞船已经加满燃料"
+        }
+      ]
+    },
+    {
+      "id": "route_choice",
+      "type": "route_choice",
+      "goal": "玩家在星图上点击一个光点，选定这次先看哪一段星空，点完进入指挥舱",
+      "backdrop": "Space City 2",
+      "interaction": "click",
+      "dialogue": [
+        "星图上亮着三盏灯：地球港、日冕环，还有那道旧航道。",
+        "你点哪一盏，我就先讲哪一段故事。"
+      ],
+      "next": "station_bridge",
+      "sprites": [
+        {
+          "name": "CaptainChoice",
+          "asset": "@official:Ripley",
+          "duty": "举着星图站在左下角，提示玩家点一个光点，被点中后统一跳到下一幕"
+        },
+        {
+          "name": "OptionCity",
+          "asset": "@official:Earth",
+          "duty": "地球港光点，左上角，被点击后变亮并广播进入指挥舱"
+        },
+        {
+          "name": "OptionRing",
+          "asset": "@official:Sun",
+          "duty": "日冕环光点，右上角，被点击后变亮并广播进入指挥舱"
+        },
+        {
+          "name": "OptionGate",
+          "asset": "@official:Rocketship",
+          "duty": "旧航道光点，右下角，被点击后变亮并广播进入指挥舱"
+        }
+      ]
+    },
+    {
+      "id": "station_bridge",
+      "type": "station",
+      "goal": "指挥舱站：看清仪表盘，按空格推主引擎，把船推进下一段航线",
+      "backdrop": "Neon Tunnel",
+      "interaction": "key",
+      "dialogue": [
+        "这里是指挥舱，控制台上每个按钮都连着外面的星空。",
+        "按一下空格，把主引擎推起来，仪表盘会自己报数。"
+      ],
+      "next": "mini_game",
+      "sprites": [
+        {
+          "name": "CaptainBridge",
+          "asset": "@official:Ripley",
+          "duty": "站在控制台左侧讲解，收到空格后点头并推动剧情"
+        },
+        {
+          "name": "ConsoleBot",
+          "asset": "@official:Robot",
+          "duty": "控制台右侧的机械副手，按空格时闪一下并报出引擎状态"
+        }
+      ]
+    },
+    {
+      "id": "mini_game",
+      "type": "mini_game",
+      "goal": "20 秒内用左右方向键把飞船挪到星星下面，按空格收满 3 颗星星，每颗加 1 分",
+      "backdrop": "Nebula",
+      "interaction": "key",
+      "dialogue": [
+        "二十秒，三颗星星，飞船得靠你的方向键和空格。",
+        "左右挪过去贴住星星，贴住后按空格把它收进舱里。"
+      ],
+      "next": "station_belt",
+      "sprites": [
+        {
+          "name": "PlayerShip",
+          "asset": "@official:Rocketship",
+          "duty": "玩家操控的飞船，左右方向键移动，贴住星星时按空格收取"
+        },
+        {
+          "name": "StarItem",
+          "asset": "@official:Star",
+          "duty": "星星，随机位置出现，被收走后换个位置再出现，直到星星收满 3 颗"
+        },
+        {
+          "name": "CaptainGame",
+          "asset": "@official:Ripley",
+          "duty": "缩在右上角当计时员，用对话框报剩余秒数和已收星星数"
+        }
+      ]
+    },
+    {
+      "id": "station_belt",
+      "type": "station",
+      "goal": "陨石带站：三块能量块被岩块卡住，每按一次空格抓一块，抓满 3 块就穿过去",
+      "backdrop": "Stars",
+      "interaction": "key",
+      "dialogue": [
+        "陨石带到了，岩石缝里卡着三块发光的能量块。",
+        "每按一次空格抓一块，抓满三块我们就能穿过去。"
+      ],
+      "next": "ending",
+      "sprites": [
+        {
+          "name": "CaptainBelt",
+          "asset": "@official:Ripley",
+          "duty": "站在飞船旁边讲解陨石带的情况，并数着已抓到的能量块"
+        },
+        {
+          "name": "Rock1",
+          "asset": "@official:Rocks",
+          "duty": "漂在中间挡路的岩块，能量块被取走后会轻轻晃一下"
+        },
+        {
+          "name": "CrystalCore",
+          "asset": "@official:Crystal",
+          "duty": "三块能量块，按一次空格亮起一块被收进船里，收满三块后广播通关"
+        }
+      ]
+    },
+    {
+      "id": "ending",
+      "type": "ending",
+      "goal": "结算：展示本次航程的 6 分战绩与穿过的站点，并告诉玩家点绿旗可以再飞一次",
+      "backdrop": "Space City 2",
+      "interaction": "auto",
+      "dialogue": [
+        "六件收集品都进舱了，航线图上多了一行你的签名。",
+        "看看左上角的分数，那就是这趟银河边境的收获。",
+        "想换一盏星图上的灯再看一遍？点绿旗，我们再飞一次。"
+      ],
+      "next": "game_end",
+      "sprites": [
+        {
+          "name": "CaptainEnd",
+          "asset": "@official:Ripley",
+          "duty": "站在左下角念结束语，念完后把分数留在屏幕上不再刷新"
+        },
+        {
+          "name": "EarthArrival",
+          "asset": "@official:Earth",
+          "duty": "在右上角慢慢放大，表示飞船已停靠地球港结算"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Starfish" file "assets/Starfish.svg" center 75,75;
+// EndStar: a spinning starfish that sparkles at the side of the score screen as decoration.
+
+// Ending scene opens: spin and blink for a few seconds, then fade away.
+when broadcast scene_ending {
+    goto 130, -30;
+    set_size 60;
+    show;
+    play_sound "Pop";
+    repeat 25 {
+        turn 20;
+        set_effect ghost to 0;
+        wait 0.1;
+        set_effect ghost to 60;
+        wait 0.1;
+    }
+    clear_effects;
+    hide;
+}
+
+when flag {
+    hide;
+}

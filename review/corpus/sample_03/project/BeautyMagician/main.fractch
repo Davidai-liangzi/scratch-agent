@@ -1,0 +1,11 @@
+costume "Wizard" file "assets/BeautyMagician.svg" center 87,150;
+// BeautyMagician: decoration for beauty_game
+when broadcast scene_beauty_game {
+    show;
+    goto 0, 0;
+    set_size 50;
+}
+
+when flag {
+    hide;
+}

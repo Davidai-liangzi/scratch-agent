@@ -1,0 +1,28 @@
+costume "hen-a" file "assets/hen-a.svg" center 60,53;
+costume "hen-b" file "assets/hen-b.svg" center 63,50;
+costume "hen-c" file "assets/hen-c.svg" center 56,53;
+// StartHen：起跑线后的母鸡，一下一下啄地等着开跑，比赛一开始就躲到幕后。
+
+// 幕开始：站到起跑线后，低头啄地等待
+when broadcast scene_intro {
+    show;
+    goto 0, -82;
+    set_size 40;
+    costume "hen-a";
+    repeat 16 {
+        next_costume;
+        change_y -6;
+        wait 0.15;
+        change_y 6;
+        wait 0.3;
+    }
+}
+
+// 比赛场景开始：躲到幕后，把赛道让给 HenRacer
+when broadcast scene_quiz {
+    hide;
+}
+
+when flag {
+    hide;
+}

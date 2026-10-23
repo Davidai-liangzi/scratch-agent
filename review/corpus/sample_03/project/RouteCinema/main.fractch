@@ -1,0 +1,28 @@
+costume "Ballerina" file "assets/RouteCinema.svg" center 31.00008984350052,49;
+// RouteCinema: option 3 (Cinema Street)
+when broadcast scene_intro {
+    hide;
+}
+
+when broadcast scene_route_choice {
+    show;
+    goto 140, 20;
+    set_size 55;
+    say "Cinema Street" for 1.5;
+}
+
+when clicked {
+    if route == 0 {
+        route = 3;
+        play_sound "Pop";
+        broadcast start_tour;
+    }
+}
+
+when broadcast start_tour {
+    hide;
+}
+
+when flag {
+    hide;
+}

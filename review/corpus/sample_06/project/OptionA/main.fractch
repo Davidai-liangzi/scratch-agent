@@ -1,0 +1,33 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Taco" file "assets/taco.svg" center 78,48;
+costume "Magic Wand" file "assets/magic_wand.svg" center 41,18;
+// OptionA：答题大厅左上角的 A 选项按钮（魔法杖），出题时被点击就提交答案 A
+
+// 开场先把自己藏起来，等答题幕再出现
+when broadcast scene_intro {
+    hide;
+}
+
+// 答题幕开始，站到大厅左上角
+when broadcast scene_quiz {
+    goto -140, 105;
+    set_size 45;
+    clear_effects;
+    show;
+}
+
+// 被点击时提交 A 答案，并短暂变暗作为按下的反馈
+when clicked {
+    if sprites["QuizMaster"].vars["answering"] == 1 {
+        broadcast answer_a;
+        play_sound "Pop";
+        set_effect ghost to 60;
+        wait 0.3;
+        clear_effects;
+    }
+}
+
+// 三题答完进入结束幕，把按钮收起来
+when broadcast scene_ending {
+    hide;
+}

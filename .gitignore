@@ -35,3 +35,6 @@ worker/.wrangler/
 # ---- IDE ----
 .idea/
 .vscode/
+
+# 盲审语料只入库文本+自包含 sb3，散装资产不入库（11.9MB，可重新生成）
+review/corpus/*/project/*/assets/

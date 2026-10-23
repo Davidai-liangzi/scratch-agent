@@ -1,0 +1,29 @@
+sound "Coin" file "assets/Coin.wav";
+costume "Star" file "assets/Star.svg" center 22,23;
+// ScoreStar：钉在舞台右上角的那颗星，亮出三道题的总分，分数高就变亮、分数低就发暗
+when broadcast scene_ending {
+    goto 165, 115;
+    set_size 55;
+    motion.setrotationstyle(STYLE: "don't rotate");
+    clear_effects;
+    show;
+    // 分数够 30 分星星发亮，不够就黯淡下去
+    if score >= 30 {
+        set_effect brightness to 30;
+        play_sound "Coin";
+    } else {
+        set_effect brightness to -40;
+        set_effect ghost to 35;
+    }
+    say "总分：" ++ score;
+    // 星星转一圈，把总分亮出来
+    repeat 6 {
+        turn 30;
+        wait 0.1;
+    }
+    point 90;
+}
+
+when flag {
+    hide;
+}

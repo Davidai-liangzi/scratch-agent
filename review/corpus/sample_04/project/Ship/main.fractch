@@ -1,0 +1,41 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Rocketship" file "assets/Rocketship.svg" center 63,92;
+// Ship — rides the mouse horizontally with the laser beam switched on, so falling rocks burn up in the beam
+
+var firing = 0;
+
+// scene start: fly in, brief the player, switch the laser on and follow the mouse
+when broadcast scene_shoot {
+    firing = 0;
+    set_size 60;
+    motion.setrotationstyle(STYLE: "left-right");
+    motion.glidesecstoxy(SECS: 0.4, X: 0, Y: -105);
+    go_front;
+    show;
+    firing = 1;
+    say "飞船跟着你的鼠标走，激光柱一直开着。" for 2;
+    say "打碎一颗陨石加 1 分。" for 1.5;
+    forever {
+        if playing == 1 {
+            if sensing.mousex() > 160 {
+                motion.glidesecstoxy(SECS: 0.15, X: 160, Y: -105);
+            } else if sensing.mousex() < -160 {
+                motion.glidesecstoxy(SECS: 0.15, X: -160, Y: -105);
+            } else {
+                motion.glidesecstoxy(SECS: 0.15, X: sensing.mousex(), Y: -105);
+            }
+        }
+        wait 0.05;
+    }
+}
+
+// space bar: a quick laser burst for feedback, the beam itself stays on
+when key space {
+    if playing == 1 {
+        play_sound "Pop";
+    }
+}
+
+when flag {
+    hide;
+}

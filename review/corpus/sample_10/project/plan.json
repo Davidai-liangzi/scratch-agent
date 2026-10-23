@@ -1,0 +1,163 @@
+{
+  "title": "营地节奏鼓点：三件乐器敲八分",
+  "theme": "冒险营地的节奏点击小游戏：手鼓、塔布拉鼓和铃铛轮流亮起，点中当前发光的那件乐器加一分，拿到 8 分就通关。",
+  "player_verb": "看准当前发光的那件乐器，用鼠标点它；点一下主持人开始，结尾点击正确的乐器回答营火提问。",
+  "win": {
+    "type": "score",
+    "value": 8,
+    "text": "节奏环节每点中一次亮起的乐器得 1 分，营火提问答对再补 1 分；结算时分数达到 8 分即通关。"
+  },
+  "lose": {
+    "type": "time",
+    "value": 30,
+    "text": "节奏环节只有 30 秒，时间走完你还没攒到 8 分，主持人会请你在下一轮重来。"
+  },
+  "backdrops": [
+    {
+      "name": "Theater 2",
+      "kind": "official",
+      "asset": "@official:Theater 2"
+    },
+    {
+      "name": "Concert",
+      "kind": "official",
+      "asset": "@official:Concert"
+    },
+    {
+      "name": "Spotlight",
+      "kind": "official",
+      "asset": "@official:Spotlight"
+    }
+  ],
+  "globals": [
+    {
+      "name": "score",
+      "init": "0"
+    },
+    {
+      "name": "time_left",
+      "init": "30"
+    },
+    {
+      "name": "playing",
+      "init": "0"
+    }
+  ],
+  "router_sprite": null,
+  "routes": [],
+  "beats": [
+    {
+      "id": "intro",
+      "type": "intro",
+      "goal": "营地的舞台已经搭好，主持人说明节奏规则，玩家点一下主持人就算正式开始。",
+      "backdrop": "Theater 2",
+      "interaction": "click",
+      "dialogue": [
+        "冒险营地的舞台已经搭好：手鼓、塔布拉鼓、铃铛三件乐器会轮流亮起来。",
+        "哪件在发光就点哪件，敲中一次记 1 分，攒够 8 分这一轮就稳了。",
+        "点我一下，鼓点马上开始。"
+      ],
+      "next": "play",
+      "sprites": [
+        {
+          "name": "HostIntro",
+          "asset": "@official:Singer1",
+          "duty": "站在舞台左侧讲解三件乐器轮流亮起的规则，被点击后广播开始节奏环节。"
+        },
+        {
+          "name": "CamperFriend",
+          "asset": "@official:Seed Hero 06",
+          "duty": "站在右侧跟随鼓点轻轻晃动，提示玩家点击主持人开始，开始后隐藏。"
+        }
+      ]
+    },
+    {
+      "id": "play",
+      "type": "mini_game",
+      "goal": "30 秒内三件乐器轮流亮起，点中共当前亮着的那一件加一分，攒够 8 分。",
+      "backdrop": "Concert",
+      "interaction": "click",
+      "dialogue": [
+        "只有一件乐器在发光，点它才会加分；点到暗着的那两件不加分，还要等下一拍。",
+        "右上角的倒计时在走，8 分就在眼前。"
+      ],
+      "next": "quiz",
+      "sprites": [
+        {
+          "name": "DrumConga",
+          "asset": "@official:Drums Conga",
+          "duty": "舞台左侧的手鼓，轮到它亮起时变亮变大，被点中加 1 分后重新暗下去。"
+        },
+        {
+          "name": "DrumTabla",
+          "asset": "@official:Drums Tabla",
+          "duty": "舞台中间的塔布拉鼓，轮到它亮起时闪光，点中才加分。"
+        },
+        {
+          "name": "BellChime",
+          "asset": "@official:Bell",
+          "duty": "舞台右侧的铃铛，轮到它亮起时变亮，点中响一声并把分数加一。"
+        },
+        {
+          "name": "HostPlay",
+          "asset": "@official:Singer1",
+          "duty": "站在舞台左上角报分数和剩余秒数，节奏结束后把玩家带到营火提问。"
+        }
+      ]
+    },
+    {
+      "id": "quiz",
+      "type": "quiz",
+      "goal": "营火提问：营地里最受欢迎的是哪件乐器，点中正确的那件得 1 分奖励分。",
+      "backdrop": "Theater 2",
+      "interaction": "click",
+      "dialogue": [
+        "营火夜谈时间：冒险营地里最受欢迎的乐器是什么？",
+        "点一下你选的那件乐器，选对手鼓就再补 1 分。"
+      ],
+      "next": "end",
+      "sprites": [
+        {
+          "name": "QuizHost",
+          "asset": "@official:Singer1",
+          "duty": "坐在营火边说题，等玩家点完选项后公布答案并广播结算。"
+        },
+        {
+          "name": "AnsDrum",
+          "asset": "@official:Drums Tabla",
+          "duty": "左侧选项，代表手鼓，也是正确答案，被点中后加分并变亮。"
+        },
+        {
+          "name": "AnsRadio",
+          "asset": "@official:Radio",
+          "duty": "右侧选项，代表收音机，被点中后摇头并告诉玩家正确答案是手鼓。"
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "type": "ending",
+      "goal": "结算本轮得分：满 8 分算通关，不满则记录差距，并提示点击绿旗重新开始。",
+      "backdrop": "Spotlight",
+      "interaction": "auto",
+      "dialogue": [
+        "鼓点停了，这一轮营地记分牌已经把总分算好了。",
+        "达到 8 分就是营地节奏王，差一点也没关系。",
+        "点击绿旗，下一轮从三件乐器重新亮起开始。"
+      ],
+      "next": "game_end",
+      "sprites": [
+        {
+          "name": "HostEnd",
+          "asset": "@official:Singer1",
+          "duty": "站在聚光灯下说出最终结果和是否通关，然后广播复位。"
+        },
+        {
+          "name": "ResultBoard",
+          "asset": "@official:Laptop",
+          "duty": "显示本轮最终得分和 8 分目标线，让玩家一眼看到差距。"
+        }
+      ]
+    }
+  ]
+}

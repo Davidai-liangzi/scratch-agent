@@ -1,0 +1,29 @@
+sound "Coin" file "assets/Coin.wav";
+costume "ripley-a" file "assets/ripley-a.svg" center 57,89;
+costume "ripley-b" file "assets/ripley-b.svg" center 57,89;
+// 指挥舱站：舰长 Ripley 守在控制台左侧，讲解仪表盘与按钮，主引擎点火后点头收尾。
+
+// 进入指挥舱：站到控制台左侧，交代按钮和星空的联系。
+when broadcast scene_station_bridge {
+    motion.setrotationstyle(STYLE: "left-right");
+    goto -140, -50;
+    set_size 60;
+    costume "ripley-a";
+    clear_effects;
+    show;
+    say "这里是指挥舱，每个按钮都连着外面的星空。" for 0.4;
+    say "按一下空格，把主引擎推起来。" for 0.4;
+}
+
+// 引擎点火：换个姿势点头回应，说一句收尾再退场。
+when broadcast engine_up {
+    costume "ripley-b";
+    play_sound "Coin";
+    say "震动顺着地板爬上来了，主引擎点着了。" for 0.4;
+    costume "ripley-a";
+    hide;
+}
+
+when flag {
+    hide;
+}

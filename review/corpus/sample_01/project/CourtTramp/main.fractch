@@ -1,0 +1,28 @@
+sound "Boing" file "assets/Boing.wav";
+costume "basketball" file "assets/basketball.svg" center 23,23;
+// CourtTramp: the basketball resting on the court edge that bounces once when the coach smashes it down
+
+// scene entry: sit quietly at the edge of the court
+when broadcast scene_station_court {
+    show;
+    goto 40, -70;
+    set_size 60;
+}
+
+// the coach slammed the ball into the floor: bounce up and drop back down
+when broadcast ball_bounce {
+    play_sound "Boing";
+    repeat 10 {
+        change_y 10;
+        wait 0.03;
+    }
+    repeat 10 {
+        change_y -10;
+        wait 0.03;
+    }
+    wait 0.2;
+}
+
+when flag {
+    hide;
+}

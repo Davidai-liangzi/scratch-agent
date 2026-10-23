@@ -1,0 +1,22 @@
+costume "Kenney Chef" file "assets/Kenney_Chef.png" center 48,48;
+sound "Pop" file "assets/Pop.wav";
+// GuideEnd：结算幕里回到柜台前，按真实战绩播报结果并广播 game_end 收尾
+
+// 收到结算幕开始：站到左侧，按 score / misses / time_left 分支说话，然后结束整局
+when broadcast scene_end {
+    costume "Kenney Chef";
+    set_size 70;
+    goto -120, -40;
+    show;
+    play_sound "Pop";
+    if score >= 3 {
+        say "接住了 " ++ score ++ " 个蛋糕，通关！" for 2;
+    } else if misses >= 3 {
+        say "漏了 " ++ misses ++ " 个，篮子空了。" for 2;
+    } else {
+        say "时间到，只接到 " ++ score ++ " 个。" for 2;
+    }
+    say "按绿旗重开，再来一轮。" for 1.5;
+    hide;
+    broadcast game_end;
+}

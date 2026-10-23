@@ -1,0 +1,192 @@
+{
+  "title": "梦想乐园三题闯关",
+  "theme": "答题闯关（梦想乐园探险）",
+  "player_verb": "点击向导或地精推进关卡、点亮星星，用左、右方向键接住落下的宝石，最后用鼠标点选三个选项按钮作答。",
+  "win": {
+    "type": "score",
+    "value": 15,
+    "text": "三道题里至少答对两题、总分拿到 15 分及以上，就算闯关成功"
+  },
+  "lose": {
+    "type": "score",
+    "value": 0,
+    "text": "三题只答对一题或全错、总分掉到 0 分及以下，闯关失败"
+  },
+  "backdrops": [
+    {
+      "name": "Playing Field",
+      "kind": "official",
+      "asset": "@official:Playing Field"
+    },
+    {
+      "name": "Woods",
+      "kind": "official",
+      "asset": "@official:Woods"
+    },
+    {
+      "name": "Witch House",
+      "kind": "official",
+      "asset": "@official:Witch House"
+    },
+    {
+      "name": "Castle 1",
+      "kind": "official",
+      "asset": "@official:Castle 1"
+    }
+  ],
+  "globals": [
+    {
+      "name": "score",
+      "init": "0"
+    },
+    {
+      "name": "stars",
+      "init": "0"
+    },
+    {
+      "name": "gems",
+      "init": "0"
+    },
+    {
+      "name": "q_index",
+      "init": "0"
+    }
+  ],
+  "router_sprite": "Guide",
+  "routes": [],
+  "beats": [
+    {
+      "id": "intro",
+      "type": "intro",
+      "goal": "点击探险家向导，听完乐园规则后进入秘密角落",
+      "backdrop": "Playing Field",
+      "interaction": "click",
+      "dialogue": [
+        "我是梦想乐园的领路探险家，乐园深处藏着一条只有答完三道谜题才能走完的路。",
+        "先跟我去林子里的秘密角落，那儿有 8 颗星星等着被点亮——点我一下，我们就出发。"
+      ],
+      "next": "station",
+      "sprites": [
+        {
+          "name": "Guide",
+          "asset": "@official:Pico Walking",
+          "duty": "站在画面左侧讲解秘密角落和宝石回廊的路线，被点击一次后带玩家进入下一幕"
+        },
+        {
+          "name": "ParkBall",
+          "asset": "@official:Beachball",
+          "duty": "在画面右侧原地轻轻弹跳，装饰乐园入口，不参与点击"
+        }
+      ]
+    },
+    {
+      "id": "station",
+      "type": "station",
+      "goal": "点击看守地精 8 次，把 8 颗星星全部点亮后才放行",
+      "backdrop": "Woods",
+      "interaction": "click",
+      "dialogue": [
+        "这片林子就是秘密角落，8 颗星星全被我攥在手心里。",
+        "点我一次就放一颗，星星全都亮了，宝石回廊的门才会开。"
+      ],
+      "next": "mini_game",
+      "sprites": [
+        {
+          "name": "CornerGoblin",
+          "asset": "@official:Goblin",
+          "duty": "秘密角落的看守，每被点击一次就交出一颗星星、星星计数加 1，满 8 颗后让路放行"
+        },
+        {
+          "name": "CornerStar",
+          "asset": "@official:Star",
+          "duty": "每点亮一颗星星就闪一下，并按星星数量变换大小，满 8 颗时提示去宝石回廊"
+        }
+      ]
+    },
+    {
+      "id": "mini_game",
+      "type": "mini_game",
+      "goal": "用左、右方向键左右移动接住 3 颗掉落的钥匙宝石",
+      "backdrop": "Witch House",
+      "interaction": "key",
+      "dialogue": [
+        "房梁上的钥匙宝石一颗颗往下掉，按左、右方向键把 Tera 挪到它下面接住。",
+        "接满 3 颗宝石，回廊尽头就是城堡，三道题在那里等着你。"
+      ],
+      "next": "quiz",
+      "sprites": [
+        {
+          "name": "GemHunter",
+          "asset": "@official:Tera",
+          "duty": "待在回廊底部，按左、右方向键左右移动，负责接住掉落的宝石"
+        },
+        {
+          "name": "GemKey",
+          "asset": "@official:Key",
+          "duty": "从回廊顶部随机横坐标落下，被接住后宝石计数加 1 并换到新位置重来"
+        }
+      ]
+    },
+    {
+      "id": "quiz",
+      "type": "quiz",
+      "goal": "依次答完 3 道选择题，答对加 10 分、答错扣 5 分，答完亮出总分",
+      "backdrop": "Castle 1",
+      "interaction": "click",
+      "dialogue": [
+        "第一题：秘密角落里替你看守星星的是谁？A 地精，B 探险家，C 一块西瓜。",
+        "第二题：林子里一共藏着几颗星星？A 6 颗，B 8 颗，C 10 颗。",
+        "第三题：宝石回廊里你一共接住了几颗宝石？A 3 颗，B 5 颗，C 8 颗。",
+        "点一下你选的按钮：答对加 10 分，答错扣 5 分，三题答完我报总分。"
+      ],
+      "next": "ending",
+      "sprites": [
+        {
+          "name": "QuizMaster",
+          "asset": "@official:Retro Robot",
+          "duty": "出题人，按顺序念出 3 道题和三个选项，每题结算后换下一题，最后广播结算"
+        },
+        {
+          "name": "OptionA",
+          "asset": "@official:Taco",
+          "duty": "左上角的 A 选项按钮，被点击时提交答案 A 并短暂变暗"
+        },
+        {
+          "name": "OptionB",
+          "asset": "@official:Watermelon",
+          "duty": "中上方的 B 选项按钮，被点击时提交答案 B 并短暂变暗"
+        },
+        {
+          "name": "OptionC",
+          "asset": "@official:Glass Water",
+          "duty": "右上角的 C 选项按钮，被点击时提交答案 C 并短暂变暗"
+        }
+      ]
+    },
+    {
+      "id": "ending",
+      "type": "ending",
+      "goal": "结算并展示三道题的总分，提示怎么重玩",
+      "backdrop": "Playing Field",
+      "interaction": "auto",
+      "dialogue": [
+        "三道题都答完了，你的总分就亮在舞台右上角那颗星星上。",
+        "答对两题能到 15 分算过关，30 分是满分；掉到 0 分以下就得从头再闯一遍。",
+        "点绿旗，梦想乐园会从秘密角落重新开放。"
+      ],
+      "next": "game_end",
+      "sprites": [
+        {
+          "name": "GuideEnd",
+          "asset": "@official:Pico Walking",
+          "duty": "回到乐园入口，自动念结束语并根据总分说通关或失败"
+        },
+        {
+          "name": "ScoreStar",
+          "asset": "@official:Star",
+          "duty": "固定在舞台右上角显示最终总分，并随分数高低切换亮暗"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+costume "Star" file "assets/Star.svg" center 22,23;
+// HudStar2: top-left score readout during the meteor shower
+
+// green flag: start hidden and parked in the top-left corner so it never sits on top of other sprites
+when flag {
+    hide;
+    set_size 50;
+    goto -185, 150;
+}
+
+// scene entry: sit in the corner and keep showing how many rocks are left to smash
+when broadcast scene_barrage {
+    show;
+    set_size 50;
+    goto -185, 150;
+    forever {
+        if playing == 1 {
+            if score >= 10 {
+                say "航道清空 " ++ score ++ " / 10";
+            } else {
+                say "陨石 " ++ score ++ " / 10";
+            }
+            wait 0.3;
+        } else {
+            wait 0.3;
+        }
+    }
+}

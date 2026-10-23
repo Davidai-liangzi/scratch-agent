@@ -1,0 +1,47 @@
+costume "Star" file "assets/Star.svg" center 22,23;
+// StarItem：星云里那颗星星，轻轻上下浮动，被收走后换一条航道重新出现。
+var got = 0;
+var spot = 1;
+
+// 把星星摆到三条航道之一（靠上下浮动做点动静），三条都在飞船够得着的范围里
+def @place() {
+    if spot == 1 {
+        goto -60, 30;
+    } else if spot == 2 {
+        goto 0, 30;
+    } else {
+        goto 60, 30;
+    }
+}
+
+// 本幕开始：清空计数，随机挑一条航道，然后一直浮动到这一趟结束。
+when broadcast scene_mini_game {
+    got = 0;
+    spot = random(1, 3);
+    set_size 45;
+    @place();
+    show;
+    until got >= 3 || time_left <= 0 {
+        change_y 6;
+        wait 0.2;
+        change_y -6;
+        wait 0.2;
+    }
+    hide;
+}
+
+// 飞船把星星收走了：记一颗，然后挪到下一条航道（不会贴着原来的位置）。
+when broadcast star_collected {
+    got += 1;
+    if got < 3 {
+        spot += 1;
+        if spot > 3 {
+            spot = 1;
+        }
+        @place();
+    }
+}
+
+when flag {
+    hide;
+}

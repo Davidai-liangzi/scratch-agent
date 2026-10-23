@@ -1,0 +1,29 @@
+sound "Coin" file "assets/Coin.wav";
+costume "Gift" file "assets/Gift.svg" center 33,25;
+// TreasureChest: the glowing chest at the far end of the maze. Touching it wins the run.
+
+// Appear at the exit and blink; a touch from the hero hands over the win.
+when broadcast scene_play {
+    goto 150, 90;
+    set_size 26;
+    show;
+    wait 0.5;
+    forever {
+        if sensing.touchingobject(TOUCHINGOBJECTMENU: "MazeHero") {
+            reached = 1;
+            play_sound "Coin";
+            hide;
+            return;
+        }
+        if time_left <= 0 {
+            hide;
+            return;
+        }
+        next_costume;
+        wait 0.25;
+    }
+}
+
+when flag {
+    hide;
+}

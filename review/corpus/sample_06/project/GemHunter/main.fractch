@@ -1,0 +1,42 @@
+sound "Pop" file "assets/Pop.wav";
+costume "tera-a" file "assets/tera-a.svg" center 49,63;
+costume "tera-b" file "assets/tera-b.svg" center 49,64;
+costume "tera-c" file "assets/tera-c.svg" center 49,63;
+costume "tera-d" file "assets/tera-d.svg" center 49,63;
+// GemHunter: Tera waits at the bottom of the gem corridor and slides left / right with the arrow keys to catch the falling key gems.
+var announced = 0;
+var tick = 0;
+
+// Scene entry: Tera takes her place, explains the arrow-key control and runs the catching loop until 3 gems are collected.
+when broadcast scene_mini_game {
+    goto 0, -120;
+    show;
+    say "房梁上的钥匙宝石一颗颗往下掉，按左、右方向键把 Tera 挪到它下面接住，每颗值 5 分。";
+    until gems >= 3 {
+        if sensing.keypressed(KEY_OPTION: sensing.keyoptions("left arrow")) {
+            if motion.xposition() > -170 {
+                set_x motion.xposition() - 12;
+            }
+        }
+        if sensing.keypressed(KEY_OPTION: sensing.keyoptions("right arrow")) {
+            if motion.xposition() < 170 {
+                set_x motion.xposition() + 12;
+            }
+        }
+        tick += 1;
+        if tick % 6 == 0 {
+            next_costume;
+        }
+        if gems >= 1 && announced == 0 {
+            announced = 1;
+            play_sound "Pop";
+            say "接满 3 颗宝石，回廊尽头就是城堡，三道题在那里等着你。";
+        }
+        wait 0.05;
+    }
+    hide;
+}
+
+when flag {
+    hide;
+}

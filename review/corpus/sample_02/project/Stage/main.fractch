@@ -1,0 +1,38 @@
+backdrop "Forest" file "assets/bd_0.png" center 240,180;
+backdrop "Jungle" file "assets/bd_1.png" center 240,180;
+backdrop "Savanna" file "assets/bd_2.png" center 240,180;
+/* 舞台由装配器生成：全局变量 + 背景 + 场景切换 */
+var score = 0;
+var time_left = 30;
+var quiz_right = 0;
+watch var "score" at 10,10;
+watch var "time_left" at 10,40;
+watch var "quiz_right" at 10,70;
+
+when flag {
+    score = 0;
+    time_left = 30;
+    quiz_right = 0;
+    backdrop "Forest";
+    broadcast scene_intro;
+}
+
+when broadcast scene_intro {
+    backdrop "Forest";
+}
+
+when broadcast scene_mini_game {
+    backdrop "Forest";
+}
+
+when broadcast scene_quiz {
+    backdrop "Jungle";
+}
+
+when broadcast scene_ending {
+    backdrop "Savanna";
+}
+
+when broadcast game_end {
+    stop all;
+}

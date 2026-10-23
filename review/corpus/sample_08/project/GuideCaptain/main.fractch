@@ -1,0 +1,44 @@
+sound "Pop" file "assets/Pop.wav";
+costume "devin-a" file "assets/devin-a.svg" center 39,95;
+// GuideCaptain: 站在营地左侧讲解迷宫规则，被点击后给出路线图；不点也会在几秒后自动出发，保证流程一定进迷宫并走到结算。
+use "music";
+
+var clicked = 0;
+
+// 进入介绍场景：显示队长并播台词，然后等玩家点击（最多等 3 秒），最后由这段脚本统一广播 scene_play。
+when broadcast scene_intro {
+    clicked = 0;
+    show;
+    set_x -120;
+    set_y -20;
+    set_size 90;
+    say "雾还没散，宝箱就被抬进前面那片丛林迷宫了。" for 2;
+    say "点我一下，路线图归你，方向键也归你指挥。";
+    reset_timer;
+    until playing == 1 || sensing.timer() > 3 {
+        music.playNoteForBeats(NOTE: 60, BEATS: 0.5);
+        wait 0.5;
+    }
+    // 没人点也自动出发，否则流程会卡在介绍场景，广播链断在这里，永远到不了结算。
+    if playing == 0 {
+        clicked = 1;
+        play_sound "Pop";
+    }
+    hide;
+    playing = 1;
+    broadcast scene_play;
+}
+
+// 点击队长：只是结束上面的等待，scene_play 统一由介绍脚本广播，避免迷宫脚本被重复触发。
+when clicked {
+    if clicked == 0 && playing == 0 {
+        clicked = 1;
+        play_sound "Pop";
+        playing = 1;
+        say "路线图给你，跟紧我的脚步！" for 1;
+    }
+}
+
+when flag {
+    hide;
+}

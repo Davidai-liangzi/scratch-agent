@@ -1,0 +1,59 @@
+costume "Rocks" file "assets/Rocks.svg" center 59,15;
+// MazeWall: the rock walls of the jungle maze. Every clone blocks one tile of the corridor.
+var wall_x = [];
+var wall_y = [];
+var wall_count = 0;
+var wall_index = 0;
+
+// Build the whole wall layout from the two coordinate lists, one clone per rock tile.
+when broadcast scene_play {
+    hide;
+    set_size 24;
+    clear(wall_x);
+    clear(wall_y);
+    append(wall_x, -90); append(wall_y, -120);
+    append(wall_x, -90); append(wall_y, -90);
+    append(wall_x, -90); append(wall_y, -60);
+    append(wall_x, -90); append(wall_y, 0);
+    append(wall_x, -90); append(wall_y, 30);
+    append(wall_x, -90); append(wall_y, 60);
+    append(wall_x, -90); append(wall_y, 90);
+    append(wall_x, 0); append(wall_y, -120);
+    append(wall_x, 0); append(wall_y, -90);
+    append(wall_x, 0); append(wall_y, -60);
+    append(wall_x, 0); append(wall_y, -30);
+    append(wall_x, 0); append(wall_y, 0);
+    append(wall_x, 0); append(wall_y, 60);
+    append(wall_x, 0); append(wall_y, 90);
+    append(wall_x, 0); append(wall_y, 120);
+    append(wall_x, 90); append(wall_y, -120);
+    append(wall_x, 90); append(wall_y, -90);
+    append(wall_x, 90); append(wall_y, -60);
+    append(wall_x, 90); append(wall_y, 0);
+    append(wall_x, 90); append(wall_y, 30);
+    append(wall_x, 90); append(wall_y, 60);
+    append(wall_x, 90); append(wall_y, 90);
+    append(wall_x, 90); append(wall_y, 120);
+    wall_index = 0;
+    wall_count = wall_x.length;
+    repeat wall_count {
+        wall_index += 1;
+        clone;
+    }
+}
+
+// Each clone shows up on its own tile and stays there as a solid block.
+when clone {
+    set_x item(wall_x, wall_index);
+    set_y item(wall_y, wall_index);
+    show;
+}
+
+// Clear every rock off the screen once the run is over.
+when broadcast scene_end {
+    hide;
+}
+
+when flag {
+    hide;
+}

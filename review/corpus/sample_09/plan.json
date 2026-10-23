@@ -1,0 +1,128 @@
+{
+  "title": "甜品店接蛋糕大作战",
+  "theme": "食物·甜品店接水果小游戏",
+  "player_verb": "用左右方向键移动篮子，让从天花板落下的蛋糕掉进篮子里",
+  "win": {
+    "type": "score",
+    "value": 3,
+    "text": "在 10 秒内接住 3 个蛋糕立刻通关"
+  },
+  "lose": {
+    "type": "time",
+    "value": 0,
+    "text": "漏掉 3 个蛋糕，或 10 秒结束时没接够 3 个"
+  },
+  "backdrops": [
+    {
+      "name": "Kenney Urban Restaurant",
+      "kind": "official",
+      "asset": "@official:Kenney Urban Restaurant"
+    },
+    {
+      "name": "Refrigerator",
+      "kind": "official",
+      "asset": "@official:Refrigerator"
+    }
+  ],
+  "globals": [
+    {
+      "name": "score",
+      "init": "0"
+    },
+    {
+      "name": "misses",
+      "init": "0"
+    },
+    {
+      "name": "time_left",
+      "init": "10"
+    },
+    {
+      "name": "playing",
+      "init": "0"
+    }
+  ],
+  "router_sprite": "",
+  "routes": [],
+  "beats": [
+    {
+      "id": "intro",
+      "type": "intro",
+      "goal": "点击美食向导（或展示柜上的蛋糕）开始这一轮接蛋糕挑战",
+      "backdrop": "Kenney Urban Restaurant",
+      "interaction": "click",
+      "dialogue": [
+        "甜品店的传送带又启动了，蛋糕正从天花板往下掉。",
+        "用左右方向键把篮子推过去，10 秒内接住 3 个就算赢。",
+        "漏掉 3 个蛋糕，这一轮就结束。点我一下，开始吧。"
+      ],
+      "next": "play",
+      "sprites": [
+        {
+          "name": "GuideIntro",
+          "asset": "@official:Kenney Chef",
+          "duty": "站在柜台后面讲解规则，被点击后把分数、漏接数和倒计时归零并广播开始"
+        },
+        {
+          "name": "CakeIntro",
+          "asset": "@official:cake-a",
+          "duty": "摆在展示柜上晃动，被点击时同样可以开始游戏"
+        }
+      ]
+    },
+    {
+      "id": "play",
+      "type": "mini_game",
+      "goal": "在 10 秒内用左右方向键移动篮子接住 3 个蛋糕；漏掉 3 个或时间用完没接够就输",
+      "backdrop": "Refrigerator",
+      "interaction": "key",
+      "dialogue": [
+        "蛋糕开始掉了！按住左右方向键移动篮子。",
+        "接满 3 个马上通关，漏满 3 个就直接结束。"
+      ],
+      "next": "end",
+      "sprites": [
+        {
+          "name": "Basket",
+          "asset": "@official:Jar",
+          "duty": "在底部随左右方向键移动，接住落下的蛋糕并加分"
+        },
+        {
+          "name": "CakeRain",
+          "asset": "@official:Cake",
+          "duty": "从顶端随机位置不断落下（cake-a、cake-b 交替），被接住加分，落地则漏接数加一"
+        },
+        {
+          "name": "EggRain",
+          "asset": "@official:Egg",
+          "duty": "作为更快的第二类掉落物（egg-a~egg-d）从另一侧落下，同样被接住加分、落地算漏接"
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "type": "ending",
+      "goal": "结算这一轮接住和漏掉的数量，并提示点绿旗重新开始",
+      "backdrop": "Kenney Urban Restaurant",
+      "interaction": "auto",
+      "dialogue": [
+        "这一轮你接住了 3 个蛋糕，篮子端得稳稳的。",
+        "要是漏掉 3 个或者 10 秒内没接够，就得再练一次了。",
+        "点绿旗可以再玩一次。"
+      ],
+      "next": "game_end",
+      "sprites": [
+        {
+          "name": "GuideEnd",
+          "asset": "@official:Kenney Chef",
+          "duty": "回到柜台前说结束语，然后广播结束并复位所有落下的蛋糕"
+        },
+        {
+          "name": "CakeEnd",
+          "asset": "@official:cake-b",
+          "duty": "在展示柜上展示被接住的那批蛋糕，做出结算画面"
+        }
+      ]
+    }
+  ]
+}

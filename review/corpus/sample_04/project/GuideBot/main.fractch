@@ -1,0 +1,32 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Robot" file "assets/Robot.svg" center 58.44040786180267,95.79979917361628;
+// GuideBot: the space station commander who briefs the pilot during the intro scene
+
+var briefed = 0;
+
+// intro: the commander explains the mission and waits at the centre of the stage
+when broadcast scene_intro {
+    briefed = 0;
+    show;
+    go_front;
+    set_size 70;
+    goto 0, 40;
+    say "警报！小行星带正朝空间站飘过来，航道快被堵死了。" for 2;
+    if briefed == 1 { return; }
+    say "移动鼠标驾驶飞船，按空格发射激光，把挡路的陨石碎掉。" for 2;
+    if briefed == 1 { return; }
+    say "点我一下，立刻出发。";
+}
+
+// clicking the commander accepts the mission and moves on to the briefing scene
+when clicked {
+    briefed = 1;
+    play_sound "Pop";
+    say "出发！" for 1;
+    hide;
+    broadcast scene_brief;
+}
+
+when flag {
+    hide;
+}

@@ -1,0 +1,34 @@
+sound "Cheer" file "assets/Cheer.wav";
+sound "Pop" file "assets/Pop.wav";
+costume "referee-a" file "assets/referee-a.svg" center 44,63;
+costume "referee-b" file "assets/referee-b.svg" center 44,63;
+costume "referee-c" file "assets/referee-c.svg" center 55,62;
+costume "referee-d" file "assets/referee-d.svg" center 50,63;
+// CoachIntro: 老陈教练站在场地左侧做开场介绍，说完自动把全场带进投篮区
+
+// 收到本幕广播：教练从边线滑进场，挥着哨子说三句开场白，然后进入投篮区
+when broadcast scene_intro {
+    set_size 100;
+    point 90;
+    motion.setrotationstyle(STYLE: "left-right");
+    goto -185, -45;
+    costume "referee-a";
+    show;
+    motion.glidesecstoxy(SECS: 0.3, X: -105, Y: -45);
+    play_sound "Pop";
+    say "哨子一响，球馆的灯全亮了。" for 0.9;
+    costume "referee-b";
+    say "我是老陈教练，今天你只干一件事——把飘起来的彩球点破。" for 0.9;
+    costume "referee-c";
+    say "先跟我走一圈，认认投篮区和正式球场。" for 0.9;
+    costume "referee-d";
+    play_sound "Cheer";
+    wait 0.2;
+    hide;
+    broadcast scene_station_shoot;
+}
+
+// 绿旗：先躲起来，等开场幕广播
+when flag {
+    hide;
+}

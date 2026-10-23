@@ -1,0 +1,46 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Robot" file "assets/Robot.svg" center 58.44040786180267,95.79979917361628;
+// 指挥舱站：机械副手守在控制台右侧，点火并报出引擎状态，然后把这幕交给小游戏。
+var active = 0;
+
+// 点火流程：闪一下亮光、报出仪表盘数值，然后推进到小游戏
+def @ignite() {
+    active = 0;
+    play_sound "Pop";
+    set_effect brightness to 60;
+    wait 0.1;
+    clear_effects;
+    say "主引擎 100%，推力平稳！" for 0.3;
+    broadcast engine_up;
+    wait 0.1;
+    say "航线已对准星云边缘，下一段你来飞。" for 0.3;
+    hide;
+    broadcast scene_mini_game;
+}
+
+// 进入指挥舱：副手就位报一遍岗，打开空格口令的开关
+when broadcast scene_station_bridge {
+    motion.setrotationstyle(STYLE: "all around");
+    goto 130, -50;
+    set_size 60;
+    clear_effects;
+    show;
+    active = 1;
+    say "副手在岗：液压稳，就差一次点火。" for 0.3;
+    // 玩家迟迟不按空格时，副手自己完成点火，保证剧情往下走
+    wait 0.2;
+    if active == 1 {
+        @ignite();
+    }
+}
+
+// 空格点火
+when key space {
+    if active == 1 {
+        @ignite();
+    }
+}
+
+when flag {
+    hide;
+}

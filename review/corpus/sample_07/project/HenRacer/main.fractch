@@ -1,0 +1,47 @@
+sound "Cheer" file "assets/Cheer.wav";
+costume "Hen" file "assets/hen.svg" center 60,53;
+// HenRacer: waits on the middle lane, then charges for the finish heart when the race starts.
+
+// Line up on the middle lane and flap while everybody waits for the start signal.
+when broadcast scene_quiz {
+    costume "Hen";
+    goto -170, 0;
+    set_size 60;
+    show;
+    repeat 30 {
+        if race_started == 0 {
+            change_y 3;
+            wait 0.1;
+            change_y -3;
+            wait 0.1;
+        }
+    }
+}
+
+// Charge right in fixed steps; the first animal to touch the finish heart wins the race.
+when broadcast race_start {
+    if race_over == 0 {
+        repeat 70 {
+            if race_over == 0 {
+                change_x 5;
+                next_costume;
+                wait 0.075;
+                if random(1, 5) == 1 {
+                    wait 0.1;
+                }
+            }
+        }
+        if race_over == 0 {
+            race_over = 1;
+            winner = "Hen";
+            play_sound "Cheer";
+            say "Hen flaps straight past the others and hits the heart!" for 1;
+            hide;
+            broadcast scene_end;
+        }
+    }
+}
+
+when flag {
+    hide;
+}

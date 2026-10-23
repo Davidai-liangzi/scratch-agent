@@ -1,0 +1,30 @@
+sound "Boing" file "assets/Boing.wav";
+costume "monkey-a" file "assets/monkey-a.svg" center 68,99;
+// AnswerMonkey — 右边的错误卡片（猴子）：被点中摇头不加分，但本轮照样结束
+
+// 收到 scene_quiz：出现在右边卡片位置，等人作答后缩回幕后
+when broadcast scene_quiz {
+    set_size 45;
+    goto 90, -20;
+    show;
+    until quiz_right == 1 {
+        wait 0.2;
+    }
+    wait 1.5;
+    hide;
+}
+
+// 被点击：如果还没人作答，就摆摆尾巴说不是自己，不加分并进入下一幕
+when clicked {
+    if quiz_right == 0 {
+        quiz_right = 1;
+        play_sound "Boing";
+        say "哎呀找错啦，我挂在树上吃果子，数秒的可不是我。" for 1.4;
+        wait 0.4;
+        broadcast scene_ending;
+    }
+}
+
+when flag {
+    hide;
+}

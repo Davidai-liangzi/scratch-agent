@@ -1,0 +1,22 @@
+costume "Heart" file "assets/heart.svg" center 65,56;
+// PodiumHeart: the finish heart sits in the middle of the podium during the award ceremony.
+sound "Pop" file "assets/Pop.wav";
+
+// On the ending scene: pop up the heart marker and let it pulse while the champion is announced.
+when broadcast scene_end {
+    goto 0, 20;
+    set_size 70;
+    show;
+    play_sound "Pop";
+    repeat 6 {
+        change_size 6;
+        wait 0.2;
+        change_size -6;
+        wait 0.2;
+    }
+    set_size 70;
+}
+
+when flag {
+    hide;
+}

@@ -1,0 +1,31 @@
+sound "Cheer" file "assets/Cheer.wav";
+sound "Pop" file "assets/Pop.wav";
+costume "Reindeer" file "assets/Reindeer.svg" center 39,70;
+// EndDeer: host of the ending scene — reads the final mole score and announces pass or fail, then hands off to game_end.
+
+// Ending scene opens: step forward, then read the ending lines, judge the score and fire game_end.
+when broadcast scene_ending {
+    goto -60, -50;
+    set_size 70;
+    clear_effects;
+    show;
+    say "这一轮结束啦，你的分数已经写在舞台左上角。";
+    wait 2;
+    if score >= 5 {
+        play_sound "Cheer";
+        say "你按住了 " ++ score ++ " 只地鼠，超过 5 分——你就是森林捕鼠王！";
+        wait 2;
+    } else {
+        play_sound "Pop";
+        say "这一轮只有 " ++ score ++ " 分，还差一点才够 5 分呢。";
+        wait 2;
+    }
+    say "拿到 5 分以上就是森林捕鼠王，点绿旗还能再守一次草丛。";
+    wait 1;
+    hide;
+    broadcast game_end;
+}
+
+when flag {
+    hide;
+}

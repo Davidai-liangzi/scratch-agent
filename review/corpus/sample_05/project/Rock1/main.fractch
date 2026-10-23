@@ -1,0 +1,27 @@
+costume "Rocks" file "assets/Rocks.svg" center 59,15;
+// Rock1: 陨石带里漂在中间挡路的岩块，能量块被取走时会轻轻晃一下
+
+// 本幕开始：岩块漂到航道中间，缓慢上下起伏
+when broadcast scene_station_belt {
+    goto 20, 0;
+    point 90;
+    set_size 60;
+    clear_effects;
+    show;
+    repeat 20 {
+        motion.glidesecstoxy(SECS: 1, X: 20, Y: 14);
+        motion.glidesecstoxy(SECS: 1, X: 20, Y: -14);
+    }
+}
+
+// 每抓走一块能量块，被撬动的岩块晃一下
+when broadcast crystal_got {
+    turn 10;
+    wait 0.2;
+    turn -10;
+    wait 0.2;
+}
+
+when flag {
+    hide;
+}

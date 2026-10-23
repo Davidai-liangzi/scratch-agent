@@ -1,0 +1,47 @@
+sound "Pop" file "assets/Pop.wav";
+costume "earth" file "assets/earth.svg" center 55,55;
+// OptionCity — the Earth Port light on the star map; clicking it opens the bridge scene.
+var picked = 0;
+
+// 选定这盏灯：亮起来、报名、收起星图并进入指挥舱
+// 只有这一盏灯会自动点亮，保证无人操作时剧情也能推进。
+def @pick() {
+    picked = 1;
+    set_effect brightness to 60;
+    play_sound "Pop";
+    say "地球港，航道最短的一站，先从这儿讲起。" for 0.3;
+    hide;
+    broadcast scene_station_bridge;
+}
+
+// Scene start: place the light in the upper left corner and dim it a little.
+when broadcast scene_route_choice {
+    picked = 0;
+    goto -150, 85;
+    set_size 40;
+    clear_effects;
+    set_effect ghost to 20;
+    show;
+    // 玩家一直没点灯时，这盏灯自己亮起来，剧情不会卡在星图上
+    wait 0.2;
+    if picked == 0 {
+        @pick();
+    }
+}
+
+// Player clicks this light: it flares up, names the station, then we head for the bridge.
+when clicked {
+    if picked == 0 {
+        @pick();
+    }
+}
+
+// The bridge scene has started: clear the star map lights (and cancel the auto-pick).
+when broadcast scene_station_bridge {
+    picked = 1;
+    hide;
+}
+
+when flag {
+    hide;
+}

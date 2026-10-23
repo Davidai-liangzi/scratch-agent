@@ -1,0 +1,95 @@
+sound "Cheer" file "assets/Cheer.wav";
+costume "Devin" file "assets/Devin.svg" center 39,95;
+sound "Lose" file "assets/Lose.wav";
+sound "Pop" file "assets/Pop.wav";
+// MazeHero: the little explorer. Arrow keys move it one tile at a time through the jungle maze; it also runs the countdown and announces the result.
+
+// Enter the maze: reset state, stand at the entrance, speak the hint, then start the countdown. Broadcasts the next scene when the run is over.
+when broadcast scene_play {
+    playing = 1;
+    reached = 0;
+    time_left = 10;
+    set_size 26;
+    goto -150, -90;
+    motion.setrotationstyle(STYLE: "left-right");
+    show;
+    say "方向键一步一步挪，撞上石墙不算数。";
+    wait 1;
+    say "看见那只发光的宝箱就走进去！";
+    wait 1;
+    say "";
+    until reached == 1 || time_left <= 0 {
+        wait 1;
+        time_left -= 1;
+    }
+    playing = 0;
+    if reached == 1 {
+        play_sound "Cheer";
+        say "宝箱抱进怀里了，迷雾散了一半。" for 1;
+    } else {
+        play_sound "Lose";
+        say "倒计时归零，队长只好把你拽回营地。" for 1;
+    }
+    hide;
+    broadcast scene_end;
+}
+
+// One tile to the right: blocked by rock walls and by the east edge of the maze.
+when key "right arrow" {
+    if playing == 1 && reached == 0 {
+        change_x 30;
+        if motion.xposition() > 180 {
+            change_x -30;
+        }
+        if sensing.touchingobject(TOUCHINGOBJECTMENU: "MazeWall") {
+            change_x -30;
+            play_sound "Pop";
+        }
+    }
+}
+
+// One tile to the left: blocked by rock walls and by the west edge of the maze.
+when key "left arrow" {
+    if playing == 1 && reached == 0 {
+        change_x -30;
+        if motion.xposition() < -180 {
+            change_x 30;
+        }
+        if sensing.touchingobject(TOUCHINGOBJECTMENU: "MazeWall") {
+            change_x 30;
+            play_sound "Pop";
+        }
+    }
+}
+
+// One tile up: blocked by rock walls and by the north edge of the maze.
+when key "up arrow" {
+    if playing == 1 && reached == 0 {
+        change_y 30;
+        if motion.yposition() > 120 {
+            change_y -30;
+        }
+        if sensing.touchingobject(TOUCHINGOBJECTMENU: "MazeWall") {
+            change_y -30;
+            play_sound "Pop";
+        }
+    }
+}
+
+// One tile down: blocked by rock walls and by the south edge of the maze.
+when key "down arrow" {
+    if playing == 1 && reached == 0 {
+        change_y -30;
+        if motion.yposition() < -120 {
+            change_y 30;
+        }
+        if sensing.touchingobject(TOUCHINGOBJECTMENU: "MazeWall") {
+            change_y 30;
+            play_sound "Pop";
+        }
+    }
+}
+
+when flag {
+    hide;
+}

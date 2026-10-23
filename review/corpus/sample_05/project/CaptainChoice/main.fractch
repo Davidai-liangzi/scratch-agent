@@ -1,0 +1,40 @@
+sound "Pop" file "assets/Pop.wav";
+costume "ripley-a" file "assets/ripley-a.svg" center 57,89;
+// CaptainChoice — holds the star map in the lower left and narrates the light-point choice.
+use "music";
+
+// Scene start: take position, show the star map, then loop soft BGM.
+when broadcast scene_route_choice {
+    goto -150, -100;
+    set_size 55;
+    clear_effects;
+    show;
+    music.setTempo(TEMPO: 84);
+    say "星图上亮着三盏灯：地球港、日冕环，还有那道旧航道。" for 0.4;
+    forever {
+        music.playNoteForBeats(NOTE: 64, BEATS: 0.25);
+        wait 0.4;
+        music.playNoteForBeats(NOTE: 67, BEATS: 0.25);
+        wait 0.4;
+        music.playNoteForBeats(NOTE: 71, BEATS: 0.25);
+        wait 0.4;
+        music.playNoteForBeats(NOTE: 67, BEATS: 0.25);
+        wait 0.4;
+    }
+}
+
+// Player clicks the captain instead of a light: she nudges them back to the star map.
+when clicked {
+    play_sound "Pop";
+    say "三盏灯都亮在星图上，你挑一盏。" for 0.4;
+}
+
+// Next scene has begun: put the star map away.
+when broadcast scene_station_bridge {
+    hide;
+    clear_effects;
+}
+
+when flag {
+    hide;
+}

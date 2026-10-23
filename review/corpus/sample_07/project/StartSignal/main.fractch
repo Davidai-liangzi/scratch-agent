@@ -1,0 +1,44 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Ball" file "assets/ball.svg" center 22,22;
+// StartSignal: hovers over the start line and fires the race when the player clicks it, or after its countdown.
+
+// Enter the quiz scene: reset the race state, take position and explain the rules.
+when broadcast scene_quiz {
+    race_started = 0;
+    race_over = 0;
+    winner = "";
+    costume "Ball";
+    goto 0, 120;
+    set_size 45;
+    show;
+    say "Three racers are lined up behind the start line, tails and wings twitching." for 1.5;
+    say "Tap the ball to start the race, or wait for my countdown!" for 1.5;
+    // Countdown bounce: the ball always fires the race itself, so the run never stalls here.
+    repeat 3 {
+        change_size 10;
+        wait 0.2;
+        change_size -10;
+        wait 0.2;
+    }
+    if race_started == 0 {
+        play_sound "Pop";
+        race_started = 1;
+        broadcast race_start;
+        say "On your marks... GO!" for 1;
+    }
+    hide;
+}
+
+// Player clicks the ball: pop the start signal and send every racer running right away.
+when clicked {
+    if race_started == 0 && race_over == 0 {
+        race_started = 1;
+        play_sound "Pop";
+        say "On your marks... GO!" for 1;
+        broadcast race_start;
+    }
+}
+
+when flag {
+    hide;
+}

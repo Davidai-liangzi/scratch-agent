@@ -1,0 +1,21 @@
+costume "Arrow1" file "assets/Arrow1.svg" center 28,23;
+// ArrowHint: a flapping arrow beside the start tile that points out the first step of the route.
+
+// Show up next to the entrance, flap for a few seconds, then get out of the way.
+when broadcast scene_play {
+    goto -120, -90;
+    set_size 20;
+    clear_effects;
+    set_effect ghost to 25;
+    show;
+    repeat 14 {
+        next_costume;
+        wait 0.35;
+    }
+    clear_effects;
+    hide;
+}
+
+when flag {
+    hide;
+}

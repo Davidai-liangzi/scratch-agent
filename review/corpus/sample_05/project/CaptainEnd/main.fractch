@@ -1,0 +1,35 @@
+sound "Cheer" file "assets/Cheer.wav";
+sound "Pop" file "assets/Pop.wav";
+costume "ripley-a" file "assets/ripley-a.svg" center 57,89;
+costume "ripley-b" file "assets/ripley-b.svg" center 57,89;
+// CaptainEnd: 结算幕舰长，念完三句结束语后广播 game_end
+
+when broadcast scene_ending {
+    // 入场：站到左下角，切回常态造型
+    show;
+    goto -140, -100;
+    set_size 70;
+    costume "ripley-a";
+    motion.setrotationstyle(STYLE: "left-right");
+    point 90;
+
+    // 第一句：收集品进舱
+    say "六件收集品都进舱了，航线图上多了一行你的签名。" for 0.4;
+    costume "ripley-b";
+
+    // 第二句：提示看分数
+    say "看看左上角的分数，那就是这趟银河边境的收获。" for 0.4;
+    costume "ripley-a";
+
+    // 第三句：邀请重玩
+    say "想再飞一次？点绿旗，我们再走一遍。" for 0.4;
+    play_sound "Cheer";
+
+    // 收尾：隐藏自己并广播结束
+    hide;
+    broadcast game_end;
+}
+
+when flag {
+    hide;
+}

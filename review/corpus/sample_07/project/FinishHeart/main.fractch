@@ -1,0 +1,27 @@
+costume "Heart" file "assets/heart.svg" center 65,56;
+use "music";
+
+// FinishHeart: marks the finish line at x = 180, pulses to the beat and plays the race tune.
+
+// Enter the quiz scene: stand at the finish, pulse and play the race music until somebody wins.
+when broadcast scene_quiz {
+    costume "Heart";
+    goto 180, 0;
+    set_size 55;
+    show;
+    say "The first animal to touch this heart is the champion!" for 2;
+    repeat 80 {
+        if race_over == 0 {
+            change_size 4;
+            wait 0.1;
+            change_size -4;
+            wait 0.1;
+            music.playNoteForBeats(NOTE: 72, BEATS: 0.2);
+            wait 0.1;
+        }
+    }
+}
+
+when flag {
+    hide;
+}

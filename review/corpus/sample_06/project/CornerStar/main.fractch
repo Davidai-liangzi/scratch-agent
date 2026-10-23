@@ -1,0 +1,35 @@
+sound "Coin" file "assets/Coin.wav";
+costume "Star" file "assets/Star.svg" center 22,23;
+// CornerStar: the star meter of the secret corner, one flash per star the goblin hands out.
+
+// Scene entry: sit in the upper-right corner and watch the star counter.
+when broadcast scene_station {
+    set_size 30;
+    goto 115, 75;
+    show;
+    say "地精手里攥着 8 颗星星，点他一下就能点亮一颗！" for 1;
+    until stars >= 8 {
+        wait 0.2;
+    }
+    say "星星全部点亮，宝石回廊就在前面！" for 1;
+    hide;
+}
+
+// One star handed over: flash brighter and pulse a little, then settle back.
+when broadcast star_lit {
+    play_sound "Coin";
+    change_effect brightness by 50;
+    repeat 3 {
+        change_size 8;
+        wait 0.05;
+    }
+    repeat 3 {
+        change_size -8;
+        wait 0.05;
+    }
+    clear_effects;
+}
+
+when flag {
+    hide;
+}

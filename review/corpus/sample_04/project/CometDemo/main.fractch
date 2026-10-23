@@ -1,0 +1,23 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Rocks" file "assets/Rocks.svg" center 59,15;
+// CometDemo: 在讲解第三句时从屏幕上方斜着慢慢滑落一颗示例陨石，落到下方后消失。
+costume "Rocks";
+
+// 本幕演示：等指挥官说到「看，像这样一颗掉下来」时开始下落，走完就隐藏
+when broadcast scene_brief {
+    hide;
+    wait 5;
+    set_size 60;
+    goto 100, 140;
+    show;
+    motion.glidesecstoxy(SECS: 1, X: 90, Y: 100);
+    motion.glidesecstoxy(SECS: 1, X: 70, Y: 40);
+    motion.glidesecstoxy(SECS: 1, X: 50, Y: -20);
+    motion.glidesecstoxy(SECS: 1, X: 30, Y: -80);
+    play_sound "Pop";
+    hide;
+}
+
+when flag {
+    hide;
+}

@@ -1,0 +1,61 @@
+sound "Boing" file "assets/Boing.wav";
+sound "Coin" file "assets/Coin.wav";
+costume "egg-a" file "assets/egg-a.svg" center 18,26;
+costume "egg-b" file "assets/egg-b.svg" center 23,27;
+costume "egg-c" file "assets/egg-c.svg" center 28,27;
+costume "egg-d" file "assets/egg-d.svg" center 19,27;
+// EggRain: a second, faster kind of falling food (eggs); caught eggs also score, dropped eggs count as a miss.
+
+// when the play act starts: spawn egg clones at a slower rhythm than the cakes until the round is over.
+when broadcast scene_play {
+    hide;
+    wait 0.9;
+    until playing == 0 {
+        clone;
+        wait 1.8;
+    }
+}
+
+// for every egg clone: pick one of egg-a to egg-d, fall fast from the ceiling (often lined up above the basket), then score or count a miss.
+when clone {
+    show;
+    if random(1, 2) == 1 {
+        if random(1, 2) == 1 {
+            costume "egg-a";
+        } else {
+            costume "egg-b";
+        }
+    } else {
+        if random(1, 2) == 1 {
+            costume "egg-c";
+        } else {
+            costume "egg-d";
+        }
+    }
+    set_size 45;
+    goto random(-160, 160), 140;
+    if random(1, 3) != 1 {
+        motion.glidesecstoxy(SECS: 0, X: sprites["Basket"].x, Y: 140);
+    }
+    until motion.yposition() < -95 || playing == 0 || sensing.touchingobject(TOUCHINGOBJECTMENU: "Basket") {
+        change_y -9;
+        wait 0.04;
+    }
+    if playing == 1 {
+        if sensing.touchingobject(TOUCHINGOBJECTMENU: "Basket") {
+            score += 1;
+            play_sound "Coin";
+        } else if abs(motion.xposition() - sprites["Basket"].x) < 40 {
+            score += 1;
+            play_sound "Coin";
+        } else {
+            misses += 1;
+            play_sound "Boing";
+        }
+    }
+    delete_clone;
+}
+
+when flag {
+    hide;
+}

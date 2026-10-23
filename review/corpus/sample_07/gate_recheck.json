@@ -1,0 +1,89 @@
+{
+  "status": "rejected",
+  "reason": "max_rounds",
+  "rounds": [
+    {
+      "round": 1,
+      "must": [
+        {
+          "id": "M4",
+          "symptom": "疑似卡死：连续 296 帧线程在跑但状态零变化",
+          "evidence": {
+            "frames": 296,
+            "threshold": 120
+          },
+          "route": 0
+        },
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "scene_end",
+              "game_end"
+            ],
+            "sent": [
+              "scene_intro",
+              "scene_quiz"
+            ]
+          },
+          "route": 0
+        },
+        {
+          "id": "S3",
+          "symptom": "通关类项目没能走到 game_end",
+          "evidence": {
+            "route": "未强制路线"
+          },
+          "route": 0
+        }
+      ],
+      "should": [],
+      "frames": 450
+    }
+  ],
+  "must": [
+    {
+      "id": "M4",
+      "symptom": "疑似卡死：连续 296 帧线程在跑但状态零变化",
+      "evidence": {
+        "frames": 296,
+        "threshold": 120
+      },
+      "route": 0
+    },
+    {
+      "id": "M7",
+      "symptom": "设计文档要求的幕链在实跑中没有走到",
+      "evidence": {
+        "missing": [
+          "scene_end",
+          "game_end"
+        ],
+        "sent": [
+          "scene_intro",
+          "scene_quiz"
+        ]
+      },
+      "route": 0
+    },
+    {
+      "id": "S3",
+      "symptom": "通关类项目没能走到 game_end",
+      "evidence": {
+        "route": "未强制路线"
+      },
+      "route": 0
+    }
+  ],
+  "should": [],
+  "slices": [
+    "广播:scene_end",
+    "广播:game_end",
+    "路线未强制路线"
+  ],
+  "plan": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\corpus_07\\plan.json",
+  "elapsed": 26.1,
+  "max_rounds": 1,
+  "timeout": 300
+}

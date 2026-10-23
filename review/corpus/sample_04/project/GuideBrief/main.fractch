@@ -1,0 +1,21 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Robot" file "assets/Robot.svg" center 58.44040786180267,95.79979917361628;
+// GuideBrief: 站在碎石带边缘，逐句讲清规则（陨石下落、碎一颗 1 分、10 分通关），随后进入射击幕。
+
+// 本幕开场：指挥官快速讲解碎石带规则，讲完立刻广播进入 shooting 幕
+when broadcast scene_brief {
+    play_sound "Pop";
+    goto -110, 70;
+    set_size 70;
+    show;
+    say "这里是碎石带边缘，陨石会一批一批从屏幕上方往下掉。" for 1.5;
+    say "激光打碎一颗陨石记 1 分，攒够 10 分航道就通了。" for 1.5;
+    say "看，像这样一颗掉下来——别让它撞到你。" for 1.5;
+    play_sound "Cheer";
+    hide;
+    broadcast scene_shoot;
+}
+
+when flag {
+    hide;
+}

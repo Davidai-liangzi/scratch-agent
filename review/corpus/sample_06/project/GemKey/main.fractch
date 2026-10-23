@@ -1,0 +1,37 @@
+sound "Cheer" file "assets/Cheer.wav";
+sound "Coin" file "assets/Coin.wav";
+costume "key" file "assets/key.svg" center 42,27;
+// GemKey: the key gem drops from the corridor rafters; every catch adds one gem and +5 score, and the third catch opens the way to the castle.
+
+// Scene entry: drop the gem, let it drift toward Tera so the catch can land, count catches, then hand over to the quiz scene.
+when broadcast scene_mini_game {
+    goto random(-120, 120), 130;
+    show;
+    until gems >= 3 {
+        change_y -10;
+        if motion.xposition() < sprites["GemHunter"].x - 6 {
+            set_x motion.xposition() + 12;
+        }
+        if motion.xposition() > sprites["GemHunter"].x + 6 {
+            set_x motion.xposition() - 12;
+        }
+        if sensing.distanceto(DISTANCETOMENU: "GemHunter") < 40 || sensing.touchingobject(TOUCHINGOBJECTMENU: "GemHunter") {
+            gems += 1;
+            score += 5;
+            play_sound "Coin";
+            goto random(-120, 120), 130;
+            wait 0.2;
+        } else if motion.yposition() < -130 {
+            goto random(-120, 120), 130;
+            wait 0.15;
+        }
+        wait 0.03;
+    }
+    hide;
+    play_sound "Cheer";
+    broadcast scene_quiz;
+}
+
+when flag {
+    hide;
+}

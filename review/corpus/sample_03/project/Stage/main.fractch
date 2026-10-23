@@ -1,0 +1,104 @@
+backdrop "Kenney Urban Mall" file "assets/bd_0.png" center 240,180;
+backdrop "Spotlight" file "assets/bd_1.png" center 240,180;
+backdrop "Kenney Urban Restaurant" file "assets/bd_2.png" center 240,180;
+backdrop "Night City" file "assets/bd_3.png" center 240,180;
+/* 舞台由装配器生成：全局变量 + 背景 + 场景切换 */
+var score = 0;
+var time_left = 30;
+var route = 0;
+var done_beauty_entrance = 0;
+var hits_beauty_entrance = 0;
+var done_beauty_end = 0;
+var hits_beauty_end = 0;
+var done_beauty_game = 0;
+var hits_beauty_game = 0;
+var done_food_entrance = 0;
+var hits_food_entrance = 0;
+var done_food_end = 0;
+var hits_food_end = 0;
+var done_food_game = 0;
+var hits_food_game = 0;
+var done_cinema_entrance = 0;
+var hits_cinema_entrance = 0;
+var done_cinema_end = 0;
+var hits_cinema_end = 0;
+var done_cinema_game = 0;
+var hits_cinema_game = 0;
+
+when flag {
+    score = 0;
+    time_left = 30;
+    route = 0;
+    done_beauty_entrance = 0;
+    hits_beauty_entrance = 0;
+    done_beauty_end = 0;
+    hits_beauty_end = 0;
+    done_beauty_game = 0;
+    hits_beauty_game = 0;
+    done_food_entrance = 0;
+    hits_food_entrance = 0;
+    done_food_end = 0;
+    hits_food_end = 0;
+    done_food_game = 0;
+    hits_food_game = 0;
+    done_cinema_entrance = 0;
+    hits_cinema_entrance = 0;
+    done_cinema_end = 0;
+    hits_cinema_end = 0;
+    done_cinema_game = 0;
+    hits_cinema_game = 0;
+    backdrop "Kenney Urban Mall";
+    broadcast scene_intro;
+}
+
+when broadcast scene_intro {
+    backdrop "Kenney Urban Mall";
+}
+
+when broadcast scene_route_choice {
+    backdrop "Kenney Urban Mall";
+}
+
+when broadcast scene_beauty_entrance {
+    backdrop "Spotlight";
+}
+
+when broadcast scene_beauty_end {
+    backdrop "Spotlight";
+}
+
+when broadcast scene_beauty_game {
+    backdrop "Spotlight";
+}
+
+when broadcast scene_food_entrance {
+    backdrop "Kenney Urban Restaurant";
+}
+
+when broadcast scene_food_end {
+    backdrop "Kenney Urban Restaurant";
+}
+
+when broadcast scene_food_game {
+    backdrop "Kenney Urban Restaurant";
+}
+
+when broadcast scene_cinema_entrance {
+    backdrop "Night City";
+}
+
+when broadcast scene_cinema_end {
+    backdrop "Night City";
+}
+
+when broadcast scene_cinema_game {
+    backdrop "Night City";
+}
+
+when broadcast scene_ending {
+    backdrop "Kenney Urban Mall";
+}
+
+when broadcast game_end {
+    stop all;
+}

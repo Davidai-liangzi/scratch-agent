@@ -1,0 +1,25 @@
+costume "rocketship-a" file "assets/rocketship-a.svg" center 63,92;
+// ShipIntro：加满燃料的飞船停在右侧缓慢左右漂移，同时循环播放开场的背景音乐。
+use "music";
+
+// 开场：飞船贴边漂移，一小段旋律反复播放当背景音乐，约八秒后随镜头切换收起。
+when broadcast scene_intro {
+    show;
+    costume "rocketship-a";
+    set_size 55;
+    motion.setrotationstyle(STYLE: "left-right");
+    point 90;
+    goto 120, -20;
+    repeat 20 {
+        move 3;
+        motion.ifonedgebounce();
+        music.playNoteForBeats(NOTE: 60, BEATS: 0.25);
+        music.playNoteForBeats(NOTE: 67, BEATS: 0.25);
+        wait 0.4;
+    }
+    hide;
+}
+
+when flag {
+    hide;
+}

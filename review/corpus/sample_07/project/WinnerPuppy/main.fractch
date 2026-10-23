@@ -1,0 +1,24 @@
+costume "Puppy" file "assets/puppy.png" center 107,103;
+// WinnerPuppy: Puppy stands on the podium only if it touched the finish heart first.
+
+// On the ending scene: show on the podium when Puppy is the champion, otherwise stay hidden.
+when broadcast scene_end {
+    set_size 60;
+    goto 95, -35;
+    point 90;
+    if winner == "Puppy" {
+        show;
+        repeat 4 {
+            change_size 8;
+            wait 0.15;
+            change_size -8;
+            wait 0.15;
+        }
+    } else {
+        hide;
+    }
+}
+
+when flag {
+    hide;
+}

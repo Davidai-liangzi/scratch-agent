@@ -1,0 +1,46 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Kenney Chef" file "assets/kenney_chef.png" center 48,48;
+// GuideIntro：柜台后的厨师，讲解接蛋糕规则，讲完自动开始一轮；被点击也能立刻开始。
+
+// 本幕开场：走到柜台前，用两句话把规则讲清楚，然后自动进入挑战
+when broadcast scene_intro {
+    show;
+    set_size 70;
+    goto -95, -55;
+    point 90;
+    say "甜品店的传送带启动了，蛋糕正从天花板往下掉。" for 1.2;
+    say "用左右方向键推篮子，10 秒内接住 3 个就赢。" for 1.2;
+    if playing == 0 {
+        score = 0;
+        misses = 0;
+        time_left = 10;
+        playing = 1;
+        play_sound "Pop";
+        say "篮子放好了，蛋糕掉下来吧！" for 0.5;
+        hide;
+        broadcast scene_play;
+    }
+}
+
+// 被点击：同样把分数、漏接数、倒计时归零，然后进入接蛋糕小游戏
+when clicked {
+    if playing == 0 {
+        play_sound "Pop";
+        score = 0;
+        misses = 0;
+        time_left = 10;
+        playing = 1;
+        say "篮子放好了，蛋糕掉下来吧！" for 0.6;
+        hide;
+        broadcast scene_play;
+    }
+}
+
+// 挑战已经开始：厨师退到柜台后面，别挡住掉落区
+when broadcast scene_play {
+    hide;
+}
+
+when flag {
+    hide;
+}

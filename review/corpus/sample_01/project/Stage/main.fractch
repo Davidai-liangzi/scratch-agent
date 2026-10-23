@@ -1,0 +1,45 @@
+backdrop "Basketball 1" file "assets/bd_0.svg" center 240,180;
+backdrop "Basketball 2" file "assets/bd_1.png" center 240,180;
+/* 舞台由装配器生成：全局变量 + 背景 + 场景切换 */
+var score = 0;
+var time_left = 10;
+watch var "score" at 10,10;
+watch var "time_left" at 10,40;
+
+// 绿旗：重置分数与倒计时，回到开场背景，启动第一幕
+when flag {
+    score = 0;
+    time_left = 10;
+    backdrop "Basketball 1";
+    broadcast scene_intro;
+}
+
+// 开场幕背景
+when broadcast scene_intro {
+    backdrop "Basketball 1";
+}
+
+// 投篮区幕背景
+when broadcast scene_station_shoot {
+    backdrop "Basketball 2";
+}
+
+// 小游戏幕背景
+when broadcast scene_mini_game {
+    backdrop "Basketball 1";
+}
+
+// 正式球场幕背景
+when broadcast scene_station_court {
+    backdrop "Basketball 2";
+}
+
+// 结局幕背景
+when broadcast scene_ending {
+    backdrop "Basketball 1";
+}
+
+// 全剧结束：停掉所有脚本
+when broadcast game_end {
+    stop all;
+}

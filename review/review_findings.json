@@ -1,0 +1,63 @@
+{
+  "reviewer": "Qwen 系第二评审（只读）",
+  "date": "2026-10-22",
+  "method": "每样本独立重跑 assert×2（多路线加 routetest×3）+ 源码核对，先盲后对照 key.json",
+  "contamination": {
+    "samples": ["sample_01", "sample_02", "sample_03"],
+    "reason": "评审者查看构建日志时提前见到管线症状；Task B 取证仍独立重跑，matches_gate 标注受影响",
+    "resolution": {
+      "date": "2026-10-23",
+      "assessment": "三例污染影响已解除，无需重审：",
+      "per_sample": {
+        "sample_01": "最终结论（误报→passed）不依赖评审判断：批次 10 修订门控+状态驱动玩家下重跑 passed（窗 45s、无 must/should），用户抽查验收表确认。",
+        "sample_02": "最终结论由用户人工验证独立确认（可以进入结算 → FP，玩家能力型），见 user_verification。",
+        "sample_03": "最终结论由用户人工验证独立确认（星星选择项被跳过 → 真缺陷，症状修正），见 user_verification；批次 10 重跑仍 rejected（M4,M7,S1,S4）。"
+      },
+      "note": "matches_gate 列对照的是修订前旧门控结论；bba1558（批次9+10）后以 build/recheck_corpus.py 最新表格为准。task_a 的 plan 漂移判定不受本污染影响（对照物是原始需求文本，非管线症状）。"
+    }
+  },
+  "task_b": [
+    {"sample": "sample_01", "gate": "rejected(M7,S1)", "defect_verdict": "false_positive", "matches_gate": "yes", "evidence": "scene_ending（胜利画面）已到达，score=5 达成；game_end 是 ending 幕台词后的收尾信号，一次跑在 443/450 帧擦线出现，两次在窗外。幕链完整、克隆 15/15、无报错。"},
+    {"sample": "sample_02", "gate": "rejected(M7,S1)", "defect_verdict": "false_positive", "matches_gate": "no", "evidence": "【用户人工验证：可以进入结算，原判 TP 作废】60 秒长窗 VM：score=8、倒计时归零，但 scene_ending 未广播且 threadsRunning=0——盲点玩家不懂问答规则（需点正确选项），卡死在 quiz 幕。属「玩家能力型误报」，非游戏缺陷。"},
+    {"sample": "sample_03", "gate": "rejected(M4,M7,S1,S4)", "defect_verdict": "true_defect", "matches_gate": "yes", "evidence": "【用户人工验证：能走完，但中途星星等选择项被直接跳过——确认仍为真缺陷，症状修正】不是整体卡死，而是选择幕交互失效（选项不可点/点了不推进）。增强型玩家须能暴露此类缺陷。"},
+    {"sample": "sample_04", "gate": "rejected(M7)", "defect_verdict": "false_positive", "matches_gate": "yes", "evidence": "五幕链 scene_intro→scene_end 全部到达；GuideEnd 源码无条件在 scene_end 后 6 秒台词广播 game_end，必然超出 15 秒窗。score=2/4 未达 10 是确定性玩家射击盲区所致，非产物缺陷。"},
+    {"sample": "sample_05", "gate": "passed", "defect_verdict": "false_positive", "matches_gate": "yes", "evidence": "game_end@175/176 两次一致，全链到达，无报错。"},
+    {"sample": "sample_06", "gate": "rejected(M7,S1)", "defect_verdict": "false_positive", "matches_gate": "yes", "evidence": "score=25≥15，三题答完；QuizMaster 源码无条件广播 scene_ending，但 quiz 幕流程 ≈13 秒叠加前置幕超出 15 秒窗。总分台词已在屏上播报。"},
+    {"sample": "sample_07", "gate": "rejected(M4,M7,S3)", "defect_verdict": "false_positive", "matches_gate": "no", "evidence": "【用户人工验证：正常，选手会跑，原判 TP 作废】60 秒长窗 VM：race_start 未广播、三只选手 x 全程 -170、冻结 816 帧——脚本点击序列/时序触发不了发令路径。属「玩家能力型误报」，非游戏缺陷。"},
+    {"sample": "sample_08", "gate": "passed", "defect_verdict": "false_positive", "matches_gate": "yes", "evidence": "game_end@368/371，迷宫走通，无报错。"},
+    {"sample": "sample_09", "gate": "passed", "defect_verdict": "false_positive", "matches_gate": "yes", "evidence": "game_end@231/218，接住 2-3 个，链路完整。"},
+    {"sample": "sample_10", "gate": "passed", "defect_verdict": "false_positive", "matches_gate": "yes", "evidence": "game_end@302，maxScore=9≥8，含 quiz 补分链路完整。"}
+  ],
+  "task_a": [
+    {"sample": "sample_01", "consistent": false, "confidence": "high", "conflicts": ["发明 30 秒时限与失败条件", "满 5 分与胜利画面之间插入按空格关卡", "ending 台词写死 5 个（失败局说谎）"]},
+    {"sample": "sample_02", "consistent": false, "confidence": "high", "conflicts": ["发明 5 分及格线（原文只要求显示得分）", "quiz 加分污染 score 语义", "发明问答玩法"]},
+    {"sample": "sample_03", "consistent": true, "confidence": "medium", "conflicts": [], "notes": "三路线+导游逐站讲解忠实；站名/商品为合理填充。"},
+    {"sample": "sample_04", "consistent": false, "confidence": "medium", "conflicts": ["第四幕改为鼠标点击陨石，与原文「按空格发射」冲突", "发明 45 秒失败条件"]},
+    {"sample": "sample_05", "consistent": false, "confidence": "medium", "conflicts": ["原文「三个场景」plan 做 6 幕", "发明收集星星/能量块的计分玩法（原文只要点对话推进）"]},
+    {"sample": "sample_06", "consistent": false, "confidence": "high", "conflicts": ["发明方向键接宝石小游戏与点亮星星幕（原文只要答题）"]},
+    {"sample": "sample_07", "consistent": false, "confidence": "medium", "conflicts": ["原文「点绿旗后同时出发」plan 改成点向导+点发令球两步", "beat id 命名 quiz 实为赛跑（命名污染）"]},
+    {"sample": "sample_08", "consistent": true, "confidence": "high", "conflicts": []},
+    {"sample": "sample_09", "consistent": false, "confidence": "high", "conflicts": ["原文「漏掉三个就游戏结束」（失败条件）被改写成「接满 3 个立刻通关」（胜利条件），语义反转", "发明 10 秒时限", "水果变成蛋糕"]},
+    {"sample": "sample_10", "consistent": false, "confidence": "medium", "conflicts": ["发明营火问答补分环节，quiz 分混入「点中乐器」的得分"]}
+  ],
+  "statistics": {
+    "R": 6, "P": 4, "TP": 1, "FP": 5, "FN": 0, "unknown": 0,
+    "gate_precision_proxy": "1/6 ≈ 17%（用户人工验证修正后；修正前误记 3/6=50%）",
+    "miss_rate_proxy": "0/4 = 0%",
+    "symptom_reproduction": "10/10 可被 VM 复现——但复现只证明『脚本过不去』，不证明『游戏有缺陷』，方法教训见下",
+    "task_a_consistent": "2/10"
+  },
+  "user_verification": {
+    "date": "2026-10-23",
+    "sample_02": "可以进入结算 → 原判 TP 作废，改 FP（玩家能力型）",
+    "sample_07": "正常，选手会跑 → 原判 TP 作废，改 FP（玩家能力型）",
+    "sample_03": "能走完但星星等选择项被直接跳过 → 维持 TP，症状修正为选择幕交互失效"
+  },
+  "root_cause_of_false_positives": "两类根因：(1) 窗口型（01/04/06）：GATE_ASSERT_SECONDS=15 与 plan 流程时长结构性冲突——批次 9 已修（结算画面判据+窗挂钩台词量）；(2) 玩家能力型（02/07）：确定性玩家是盲点脚本（每 18 帧轮流点所有角色、含不可见的），不懂问答/顺序操作，过不去≠游戏坏——批次 10 方案 B 修（针对性玩家）。方法教训：盲审把『VM 复现症状』当成了『游戏缺陷』的充分证据，实际只是『脚本路径过不去』的证据，人工验证才是最高权威。",
+  "proposals_for_user": [
+    "断言窗与流程时长挂钩：按 plan 台词量估算流程，seconds 取 max(15, 估算×1.5)，或让确定性玩家跳过 say（不推荐，改动 VM 语义）",
+    "M7 区分「结算画面已显示（scene_ending/scene_end 到达）」与「收尾信号 game_end」：前者保持 must，后者降为 should——game_end 用户不可见，缺失不应触发黄色横幅",
+    "S1 的「达胜利值未结算」同样改为检查结算画面广播",
+    "plan 漂移是生成器行为模式（9/10 发明规则），与门控无关；需求预检 check_requirement_conflict 不覆盖「发明」，属批次 8 议题"
+  ]
+}

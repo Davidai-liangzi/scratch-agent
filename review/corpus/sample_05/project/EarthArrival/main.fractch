@@ -1,0 +1,20 @@
+sound "Pop" file "assets/Pop.wav";
+costume "earth" file "assets/earth.svg" center 55,55;
+// EarthArrival: 结算幕右上角的地球，缓缓放大表示停靠完成
+
+when broadcast scene_ending {
+    // 从右上角小尺寸开始，慢慢放大
+    show;
+    goto 150, 80;
+    set_size 20;
+    costume "earth";
+    repeat 12 {
+        change_size 3;
+        wait 0.15;
+    }
+    play_sound "Pop";
+}
+
+when flag {
+    hide;
+}

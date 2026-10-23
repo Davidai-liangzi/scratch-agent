@@ -1,0 +1,33 @@
+costume "Ripley" file "assets/Ripley.svg" center 57,89;
+// CaptainBelt: 舰长 Ripley 在陨石带旁讲解，并数着已经抓到的能量块
+var got = 0;
+
+// 本幕开始：舰长说明陨石带的情况，说完放开空格操作
+when broadcast scene_station_belt {
+    got = 0;
+    goto -140, -70;
+    set_size 70;
+    clear_effects;
+    show;
+    say "陨石带到了，岩石缝里卡着三块发光的能量块。" for 0.4;
+    say "每按一次空格抓一块，抓满三块我们就能穿过去。" for 0.3;
+    broadcast belt_ready;
+}
+
+// 每抓走一块能量块，舰长报一次数
+when broadcast crystal_got {
+    if got < 3 {
+        got += 1;
+        if got == 1 {
+            say "一块进舱了，还有两块。" for 0.3;
+        } else if got == 2 {
+            say "第二块也到手了，就剩最后一块。" for 0.3;
+        } else {
+            say "三块都收好了，抓稳——我们要穿过去了。" for 0.3;
+        }
+    }
+}
+
+when flag {
+    hide;
+}

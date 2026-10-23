@@ -1,0 +1,33 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Singer1" file "assets/Singer1.svg" center 75,75;
+// HostIntro：站在舞台左侧的营地主持人，讲解三件乐器的节奏规则，被点中后开始鼓点环节。
+var ready = 0;
+
+// 本幕开场：主持人上台，逐句说明规则，然后停在最后一句话等着被点
+when broadcast scene_intro {
+    ready = 0;
+    set_size 60;
+    goto -110, -25;
+    point 90;
+    show;
+    say "冒险营地的舞台已经搭好：手鼓、塔布拉鼓、铃铛三件乐器会轮流亮起来。" for 1.5;
+    say "哪件在发光就点哪件，敲中一次记 1 分，攒够 8 分这一轮就稳了。" for 1.5;
+    say "点我一下，鼓点马上开始。";
+    ready = 1;
+}
+
+// 玩家点主持人：响一声、退到一边，把舞台交给节奏环节
+when clicked {
+    if ready == 1 {
+        ready = 0;
+        play_sound "Pop";
+        say "";
+        hide;
+        playing = 1;
+        broadcast scene_play;
+    }
+}
+
+when flag {
+    hide;
+}

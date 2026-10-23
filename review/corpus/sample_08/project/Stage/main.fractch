@@ -1,0 +1,37 @@
+backdrop "Forest" file "assets/bd_0.png" center 240,180;
+backdrop "Jungle" file "assets/bd_1.png" center 240,180;
+backdrop "Spotlight" file "assets/bd_2.png" center 240,180;
+/* 舞台由装配器生成：全局变量 + 背景 + 场景切换 */
+var score = 0;
+var time_left = 10;
+var playing = 0;
+var reached = 0;
+watch var "score" at 10,10;
+watch var "time_left" at 10,40;
+watch var "playing" at 10,70;
+watch var "reached" at 10,100;
+
+when flag {
+    score = 0;
+    time_left = 10;
+    playing = 0;
+    reached = 0;
+    backdrop "Forest";
+    broadcast scene_intro;
+}
+
+when broadcast scene_intro {
+    backdrop "Forest";
+}
+
+when broadcast scene_play {
+    backdrop "Jungle";
+}
+
+when broadcast scene_end {
+    backdrop "Spotlight";
+}
+
+when broadcast game_end {
+    stop all;
+}

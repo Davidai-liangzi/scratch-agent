@@ -1,0 +1,44 @@
+sound "Pop" file "assets/Pop.wav";
+costume "Rocks" file "assets/Rocks.svg" center 59,15;
+// MeteorClick: dense meteor clones rain down; clicking one blasts it and adds 1 point
+
+// scene entry: stream a fixed number of meteors; the stage owns the countdown and broadcasts scene_end
+when broadcast scene_barrage {
+    hide;
+    set_size 55;
+    wait 1;
+    repeat 12 {
+        if time_left > 0 {
+            clone;
+        }
+        wait 0.4;
+    }
+}
+
+// clone: drop from the top of the screen to the bottom edge, then vanish
+when clone {
+    set_size 55;
+    set_x random(-185, 185);
+    set_y 150;
+    show;
+    until motion.yposition() < -120 {
+        change_y -7;
+        wait 0.05;
+    }
+    delete_clone;
+}
+
+// clicked: blast the meteor with the mouse, score 1 point and remove it so new ones can come back
+when clicked {
+    if score < 10 {
+        score += 1;
+        play_sound "Pop";
+    }
+    delete_clone;
+}
+
+// green flag: keep the original hidden and parked at the top edge, away from the other sprites
+when flag {
+    hide;
+    goto 0, 165;
+}

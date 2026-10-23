@@ -1,0 +1,114 @@
+{
+  "status": "rejected",
+  "reason": "max_rounds",
+  "rounds": [
+    {
+      "round": 1,
+      "must": [
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "scene_barrage",
+              "scene_end",
+              "game_end"
+            ],
+            "sent": [
+              "scene_brief",
+              "scene_intro",
+              "scene_shoot"
+            ]
+          },
+          "route": 0
+        },
+        {
+          "id": "S1",
+          "symptom": "计分类项目里 score 从未增长",
+          "evidence": {
+            "series_size": 1,
+            "last": 0
+          },
+          "route": 0
+        }
+      ],
+      "should": [],
+      "frames": 450
+    },
+    {
+      "round": 2,
+      "must": [
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "scene_end",
+              "game_end"
+            ],
+            "sent": [
+              "scene_barrage",
+              "scene_brief",
+              "scene_intro",
+              "scene_shoot"
+            ]
+          },
+          "route": 0
+        }
+      ],
+      "should": [],
+      "frames": 450
+    },
+    {
+      "round": 3,
+      "must": [
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "game_end"
+            ],
+            "sent": [
+              "scene_barrage",
+              "scene_brief",
+              "scene_end",
+              "scene_intro",
+              "scene_shoot"
+            ]
+          },
+          "route": 0
+        }
+      ],
+      "should": [],
+      "frames": 450
+    }
+  ],
+  "must": [
+    {
+      "id": "M7",
+      "symptom": "设计文档要求的幕链在实跑中没有走到",
+      "evidence": {
+        "missing": [
+          "game_end"
+        ],
+        "sent": [
+          "scene_barrage",
+          "scene_brief",
+          "scene_end",
+          "scene_intro",
+          "scene_shoot"
+        ]
+      },
+      "route": 0
+    }
+  ],
+  "should": [],
+  "slices": [
+    "广播:game_end"
+  ],
+  "plan": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\corpus_04\\plan.json",
+  "elapsed": 177.4,
+  "max_rounds": 3,
+  "timeout": 300
+}

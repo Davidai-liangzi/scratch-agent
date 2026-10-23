@@ -1,0 +1,340 @@
+{
+  "status": "rejected",
+  "reason": "repair_disabled",
+  "rounds": [
+    {
+      "round": 1,
+      "must": [
+        {
+          "id": "M4",
+          "symptom": "疑似卡死：连续 288 帧线程在跑但状态零变化",
+          "evidence": {
+            "frames": 288,
+            "threshold": 120
+          },
+          "route": 0
+        },
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "scene_beauty_end",
+              "scene_beauty_game",
+              "scene_ending",
+              "scene_food_end",
+              "scene_food_game",
+              "scene_cinema_end",
+              "scene_cinema_game",
+              "game_end"
+            ],
+            "sent": [
+              "scene_beauty_entrance",
+              "scene_intro",
+              "scene_route_choice",
+              "start_tour"
+            ]
+          },
+          "route": 0
+        },
+        {
+          "id": "S1",
+          "symptom": "计分类项目里 score 从未增长",
+          "evidence": {
+            "series_size": 1,
+            "last": 0
+          },
+          "route": 0
+        },
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "scene_beauty_end",
+              "scene_beauty_game",
+              "scene_food_end",
+              "scene_food_game",
+              "scene_cinema_end",
+              "scene_cinema_game"
+            ],
+            "sent": [
+              "game_end",
+              "scene_beauty_entrance",
+              "scene_ending",
+              "scene_intro",
+              "scene_route_choice",
+              "start_tour"
+            ]
+          },
+          "route": 1
+        },
+        {
+          "id": "S1",
+          "symptom": "计分类项目里 score 从未增长",
+          "evidence": {
+            "series_size": 1,
+            "last": 0
+          },
+          "route": 1
+        },
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "scene_beauty_end",
+              "scene_beauty_game",
+              "scene_food_end",
+              "scene_food_game",
+              "scene_cinema_end",
+              "scene_cinema_game"
+            ],
+            "sent": [
+              "game_end",
+              "scene_beauty_entrance",
+              "scene_ending",
+              "scene_intro",
+              "scene_route_choice",
+              "start_tour"
+            ]
+          },
+          "route": 2
+        },
+        {
+          "id": "S1",
+          "symptom": "计分类项目里 score 从未增长",
+          "evidence": {
+            "series_size": 1,
+            "last": 0
+          },
+          "route": 2
+        },
+        {
+          "id": "S4",
+          "symptom": "强制路线与实际 route 不一致",
+          "evidence": {
+            "route_value": "1",
+            "forced": 2
+          },
+          "route": 2
+        },
+        {
+          "id": "M7",
+          "symptom": "设计文档要求的幕链在实跑中没有走到",
+          "evidence": {
+            "missing": [
+              "scene_beauty_end",
+              "scene_beauty_game",
+              "scene_food_end",
+              "scene_food_game",
+              "scene_cinema_end",
+              "scene_cinema_game"
+            ],
+            "sent": [
+              "game_end",
+              "scene_beauty_entrance",
+              "scene_ending",
+              "scene_intro",
+              "scene_route_choice",
+              "start_tour"
+            ]
+          },
+          "route": 3
+        },
+        {
+          "id": "S1",
+          "symptom": "计分类项目里 score 从未增长",
+          "evidence": {
+            "series_size": 1,
+            "last": 0
+          },
+          "route": 3
+        },
+        {
+          "id": "S4",
+          "symptom": "强制路线与实际 route 不一致",
+          "evidence": {
+            "route_value": "1",
+            "forced": 3
+          },
+          "route": 3
+        }
+      ],
+      "should": [],
+      "frames": 450
+    }
+  ],
+  "must": [
+    {
+      "id": "M4",
+      "symptom": "疑似卡死：连续 288 帧线程在跑但状态零变化",
+      "evidence": {
+        "frames": 288,
+        "threshold": 120
+      },
+      "route": 0
+    },
+    {
+      "id": "M7",
+      "symptom": "设计文档要求的幕链在实跑中没有走到",
+      "evidence": {
+        "missing": [
+          "scene_beauty_end",
+          "scene_beauty_game",
+          "scene_ending",
+          "scene_food_end",
+          "scene_food_game",
+          "scene_cinema_end",
+          "scene_cinema_game",
+          "game_end"
+        ],
+        "sent": [
+          "scene_beauty_entrance",
+          "scene_intro",
+          "scene_route_choice",
+          "start_tour"
+        ]
+      },
+      "route": 0
+    },
+    {
+      "id": "S1",
+      "symptom": "计分类项目里 score 从未增长",
+      "evidence": {
+        "series_size": 1,
+        "last": 0
+      },
+      "route": 0
+    },
+    {
+      "id": "M7",
+      "symptom": "设计文档要求的幕链在实跑中没有走到",
+      "evidence": {
+        "missing": [
+          "scene_beauty_end",
+          "scene_beauty_game",
+          "scene_food_end",
+          "scene_food_game",
+          "scene_cinema_end",
+          "scene_cinema_game"
+        ],
+        "sent": [
+          "game_end",
+          "scene_beauty_entrance",
+          "scene_ending",
+          "scene_intro",
+          "scene_route_choice",
+          "start_tour"
+        ]
+      },
+      "route": 1
+    },
+    {
+      "id": "S1",
+      "symptom": "计分类项目里 score 从未增长",
+      "evidence": {
+        "series_size": 1,
+        "last": 0
+      },
+      "route": 1
+    },
+    {
+      "id": "M7",
+      "symptom": "设计文档要求的幕链在实跑中没有走到",
+      "evidence": {
+        "missing": [
+          "scene_beauty_end",
+          "scene_beauty_game",
+          "scene_food_end",
+          "scene_food_game",
+          "scene_cinema_end",
+          "scene_cinema_game"
+        ],
+        "sent": [
+          "game_end",
+          "scene_beauty_entrance",
+          "scene_ending",
+          "scene_intro",
+          "scene_route_choice",
+          "start_tour"
+        ]
+      },
+      "route": 2
+    },
+    {
+      "id": "S1",
+      "symptom": "计分类项目里 score 从未增长",
+      "evidence": {
+        "series_size": 1,
+        "last": 0
+      },
+      "route": 2
+    },
+    {
+      "id": "S4",
+      "symptom": "强制路线与实际 route 不一致",
+      "evidence": {
+        "route_value": "1",
+        "forced": 2
+      },
+      "route": 2
+    },
+    {
+      "id": "M7",
+      "symptom": "设计文档要求的幕链在实跑中没有走到",
+      "evidence": {
+        "missing": [
+          "scene_beauty_end",
+          "scene_beauty_game",
+          "scene_food_end",
+          "scene_food_game",
+          "scene_cinema_end",
+          "scene_cinema_game"
+        ],
+        "sent": [
+          "game_end",
+          "scene_beauty_entrance",
+          "scene_ending",
+          "scene_intro",
+          "scene_route_choice",
+          "start_tour"
+        ]
+      },
+      "route": 3
+    },
+    {
+      "id": "S1",
+      "symptom": "计分类项目里 score 从未增长",
+      "evidence": {
+        "series_size": 1,
+        "last": 0
+      },
+      "route": 3
+    },
+    {
+      "id": "S4",
+      "symptom": "强制路线与实际 route 不一致",
+      "evidence": {
+        "route_value": "1",
+        "forced": 3
+      },
+      "route": 3
+    }
+  ],
+  "should": [],
+  "slices": [
+    "广播:scene_beauty_end",
+    "广播:scene_beauty_game",
+    "广播:scene_ending",
+    "广播:scene_food_end",
+    "广播:scene_food_game",
+    "广播:scene_cinema_end",
+    "广播:scene_cinema_game",
+    "广播:game_end"
+  ],
+  "plan": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\corpus_03\\plan.json",
+  "elapsed": 101.6,
+  "max_rounds": 3,
+  "timeout": 300
+}

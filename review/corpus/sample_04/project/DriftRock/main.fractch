@@ -1,0 +1,31 @@
+costume "Rocks" file "assets/Rocks.svg" center 59,15;
+// DriftRock: an asteroid drifting slowly across the space backdrop, and it also plays the intro music
+
+use "music";
+
+// intro: drift in from the right edge while looping a short background melody
+when broadcast scene_intro {
+    show;
+    go_back;
+    set_size 40;
+    set_effect ghost to 30;
+    goto 200, 110;
+    forever {
+        change_x -2;
+        if motion.xposition() < -200 {
+            set_x 200;
+        }
+        music.playNoteForBeats(NOTE: 60, BEATS: 0.25);
+        wait 0.25;
+        change_x -2;
+        if motion.xposition() < -200 {
+            set_x 200;
+        }
+        music.playNoteForBeats(NOTE: 64, BEATS: 0.25);
+        wait 0.25;
+    }
+}
+
+when flag {
+    hide;
+}

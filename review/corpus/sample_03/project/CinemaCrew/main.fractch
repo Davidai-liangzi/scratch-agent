@@ -1,0 +1,11 @@
+costume "Kenney Customer" file "assets/CinemaCrew.png" center 48,48;
+// CinemaCrew: decoration for cinema_game
+when broadcast scene_cinema_game {
+    show;
+    goto 0, 0;
+    set_size 50;
+}
+
+when flag {
+    hide;
+}

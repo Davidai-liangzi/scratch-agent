@@ -1,0 +1,55 @@
+sound "Pop" file "assets/Pop.wav";
+costume "referee-a" file "assets/referee-a.svg" center 44,63;
+costume "referee-b" file "assets/referee-b.svg" center 44,63;
+costume "referee-c" file "assets/referee-c.svg" center 55,62;
+costume "referee-d" file "assets/referee-d.svg" center 50,63;
+// CoachCourt: 带你走到正式球场，按空格把球砸向地板；没人按就自己收尾进结局
+var active = 0;
+
+// 收尾流程：砸球、报成绩、进结局（按键和超时都走这里）
+def @finish_court() {
+    active = 0;
+    costume "referee-b";
+    play_sound "Pop";
+    broadcast ball_bounce;
+    say "砸下去——听这声，球自己弹回来了！" for 0.8;
+    if score >= 5 {
+        costume "referee-c";
+        say "这一场你点破了 " ++ score ++ " 个彩球，5 分到手，这一局算你赢。" for 1;
+    } else {
+        costume "referee-d";
+        say "这一场只点破了 " ++ score ++ " 个彩球，还没够 5 分，下回再来过。" for 1;
+    }
+    costume "referee-a";
+    say "回中圈来，我给你报成绩。" for 0.7;
+    hide;
+    broadcast scene_ending;
+}
+
+// 进入正式球场：说两句，等玩家按空格；等不到就自动往下走
+when broadcast scene_station_court {
+    active = 1;
+    show;
+    goto -110, -35;
+    costume "referee-a";
+    say "脚下就是正式球场，中线就在我脚边这条白线上。" for 1.2;
+    say "按一下空格，把球砸向地板看它弹起来。";
+    repeat 2 {
+        wait 0.25;
+    }
+    if active == 1 {
+        @finish_court();
+    }
+}
+
+// 按空格：把球砸下去，进入结局
+when key space {
+    if active == 1 {
+        @finish_court();
+    }
+}
+
+// 绿旗：先躲起来
+when flag {
+    hide;
+}

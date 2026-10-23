@@ -1,0 +1,29 @@
+costume "Reindeer" file "assets/Reindeer.svg" center 39,70;
+// QuizDeer — 出题的小鹿：在舞台上方念题，介绍左右两张答案卡片；没人作答时自己揭晓答案，保证流程能走到结算
+
+var quiz_wait = 0;   // 等待作答的计时（每格 0.2 秒），防止没人点卡片时整条幕链卡死
+
+// 收到 scene_quiz：飞到舞台上方，念出两道题目台词，等玩家作答；超时则自己公布答案并进入结算
+when broadcast scene_quiz {
+    set_size 55;
+    goto 0, 100;
+    show;
+    say "刚才打地鼠的时候，有一只小动物一直守在左上角帮你数秒。" for 3;
+    say "两张卡片里点出它，答对了天上再掉 1 分。";
+    quiz_wait = 0;
+    until quiz_right == 1 || quiz_wait >= 25 {
+        wait 0.2;
+        quiz_wait += 1;
+    }
+    if quiz_right == 0 {
+        quiz_right = 1;
+        say "没人来点，小鹿自己公布答案——是左边那只数秒的企鹅。" for 2;
+        broadcast scene_ending;
+    }
+    wait 1;
+    hide;
+}
+
+when flag {
+    hide;
+}

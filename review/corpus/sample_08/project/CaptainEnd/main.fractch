@@ -1,0 +1,31 @@
+sound "Cheer" file "assets/Cheer.wav";
+sound "Pop" file "assets/Pop.wav";
+costume "devin-a" file "assets/devin-a.svg" center 39,95;
+// CaptainEnd: ending host — reports whether the chest was reached and how many seconds remain, then hands over to game_end.
+
+// On scene_end: show the captain in the spotlight and announce the result of the maze run.
+when broadcast scene_end {
+    show;
+    go_front;
+    set_size 80;
+    motion.setrotationstyle(STYLE: "left-right");
+    goto -80, 0;
+    // Success branch: the hero touched the glowing chest before the timer ran out.
+    if reached == 1 {
+        play_sound "Cheer";
+        say "宝箱抱回营地了，帐篷里的人全围过来看。" for 1.5;
+        say "还剩 " ++ time_left ++ " 秒——下次可以试试绕更短的那条缝。" for 1.5;
+    } else {
+        // Failure branch: the timer hit zero before the chest was touched.
+        play_sound "Pop";
+        say "倒计时走完了，宝箱还蹲在迷宫尽头没被摸到。" for 1.5;
+        say "队长把你拉回营地，下次贴着左边墙试试。" for 1.5;
+    }
+    say "再点一次绿旗，迷雾会重新铺满整片迷宫。" for 1.5;
+    hide;
+    broadcast game_end;
+}
+
+when flag {
+    hide;
+}

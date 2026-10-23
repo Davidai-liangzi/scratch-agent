@@ -1,0 +1,46 @@
+backdrop "Playing Field" file "assets/bd_0.png" center 240,180;
+backdrop "Woods" file "assets/bd_1.svg" center 240,180;
+backdrop "Witch House" file "assets/bd_2.svg" center 240,180;
+backdrop "Castle 1" file "assets/bd_3.png" center 240,180;
+/* 舞台由装配器生成：全局变量 + 背景 + 场景切换 */
+var score = 0;
+var stars = 0;
+var gems = 0;
+var q_index = 0;
+watch var "score" at 10,10;
+watch var "stars" at 10,40;
+watch var "gems" at 10,70;
+watch var "q_index" at 10,100;
+
+when flag {
+    score = 0;
+    stars = 0;
+    gems = 0;
+    q_index = 0;
+    backdrop "Playing Field";
+    broadcast scene_intro;
+}
+
+when broadcast scene_intro {
+    backdrop "Playing Field";
+}
+
+when broadcast scene_station {
+    backdrop "Woods";
+}
+
+when broadcast scene_mini_game {
+    backdrop "Witch House";
+}
+
+when broadcast scene_quiz {
+    backdrop "Castle 1";
+}
+
+when broadcast scene_ending {
+    backdrop "Playing Field";
+}
+
+when broadcast game_end {
+    stop all;
+}

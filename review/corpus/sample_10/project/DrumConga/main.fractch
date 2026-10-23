@@ -1,0 +1,46 @@
+sound "Coin" file "assets/Coin.wav";
+sound "Pop" file "assets/Pop.wav";
+costume "Drums Conga-a" file "assets/conga.svg" center 65,66;
+// DrumConga：舞台左侧的手鼓。轮到它时变亮变大，点中它加 1 分。
+var hit_flag = 0;
+
+// 收到 scene_play：站到左侧，跟着主持人的 active 标记亮起或暗下去，本轮结束后隐藏。
+when broadcast scene_play {
+    goto -150, -50;
+    set_size 70;
+    set_effect brightness to 0;
+    show;
+    hit_flag = 0;
+    wait 0.2;
+    until playing == 0 {
+        if sprites["HostPlay"].vars["active"] == 1 {
+            set_size 88;
+            set_effect brightness to 40;
+        } else {
+            set_size 70;
+            set_effect brightness to 0;
+            hit_flag = 0;
+        }
+        wait 0.1;
+    }
+    set_size 70;
+    set_effect brightness to 0;
+    hide;
+}
+
+// 被点击：只有正亮着的手鼓才加分，暗着的两件只响一声 Pop。
+when clicked {
+    if playing == 1 {
+        if sprites["HostPlay"].vars["active"] == 1 && hit_flag == 0 {
+            hit_flag = 1;
+            score += 1;
+            play_sound "Coin";
+        } else {
+            play_sound "Pop";
+        }
+    }
+}
+
+when flag {
+    hide;
+}

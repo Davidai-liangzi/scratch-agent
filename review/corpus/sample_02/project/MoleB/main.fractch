@@ -1,0 +1,43 @@
+costume "Hedgehog" file "assets/Hedgehog.svg" center 71,56;
+sound "Pop" file "assets/Pop.wav";
+// MoleB：右侧洞口的地鼠，和左边那只轮流冒头，被点中同样加 1 分
+var moleB_up = 0;   // 1 表示这只地鼠正露在洞口外面，可以被点中
+
+// 本幕开始：在右侧洞口反复冒头、缩回，倒计时归零就收工
+when broadcast scene_mini_game {
+    set_size 55;
+    goto 120, -70;
+    hide;
+    moleB_up = 0;
+    while time_left > 0 {
+        if random(1, 2) == 1 {
+            wait 1.6;
+        } else {
+            wait 2.2;
+        }
+        show;
+        moleB_up = 1;
+        repeat 20 {
+            if moleB_up == 1 {
+                wait 0.1;
+            }
+        }
+        hide;
+        moleB_up = 0;
+    }
+    hide;
+}
+
+// 玩家点中冒头的这只地鼠：加 1 分、缩回洞里，缩回去以后再点就不算
+when clicked {
+    if moleB_up == 1 {
+        score += 1;
+        moleB_up = 0;
+        play_sound "Pop";
+        say "这颗果子归我啦——不是！" for 1;
+    }
+}
+
+when flag {
+    hide;
+}

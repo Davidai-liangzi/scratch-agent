@@ -1,0 +1,62 @@
+sound "Cheer" file "assets/Cheer.wav";
+costume "Crystal" file "assets/Crystal.svg" center 15,15;
+sound "Pop" file "assets/Pop.wav";
+// CrystalCore: 卡在岩缝里的三块能量块，按一次空格收一块，收满三块就穿过去
+var ready = 0;
+var taken = 0;
+
+// 收走一块能量块：加分、亮一下、报给舰长；第三块收完就进结算
+def @grab() {
+    if taken < 3 {
+        taken += 1;
+        score += 1;
+        play_sound "Pop";
+        set_effect brightness to 60;
+        wait 0.1;
+        clear_effects;
+        broadcast crystal_got;
+        if taken == 1 {
+            goto 95, -35;
+        } else if taken == 2 {
+            goto 45, 50;
+        } else {
+            set_size 40;
+            play_sound "Cheer";
+            hide;
+            wait 0.2;
+            broadcast scene_ending;
+        }
+    }
+}
+
+// 本幕开始：第一块能量块亮在岩缝左侧，先不接受按键
+when broadcast scene_station_belt {
+    ready = 0;
+    taken = 0;
+    goto 60, 10;
+    set_size 55;
+    clear_effects;
+    show;
+}
+
+// 舰长讲完话，能量块开始可以被空格收走；玩家不动手时它们也会自己一颗颗松脱
+when broadcast belt_ready {
+    ready = 1;
+    repeat 3 {
+        if taken < 3 {
+            @grab();
+        }
+        wait 0.2;
+    }
+}
+
+// 空格收能量块
+when key space {
+    if ready == 1 {
+        @grab();
+    }
+}
+
+when flag {
+    hide;
+}
