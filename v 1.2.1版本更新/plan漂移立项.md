@@ -63,4 +63,5 @@ Qwen 系只读模型，触发条件 = plan 定稿前；只接收需求原文 + p
 
 - 口径已人工确认：硬冲突口径（模板级补全只记 should，must 只拦 P1-P4 四类硬冲突）。
 - 方案一已实施为批次 11：`core/plan_fidelity.py` + `test_plan_fidelity.py`（20/20，含回炉状态机）+ `build/recheck_fidelity.py`（漂移 7/8 must 拒、忠实 2/2 放行、零误拒，01 漏判由方案二补盲）；回炉口径已人工确认并实施：**must→回炉 1 轮→复验，仍拒回退单轮生成**（`enforce_plan_fidelity` + `planner.refine_fidelity`）。详见 架构优化.md 批次 11 章节。
-- 方案二（异构审查者）待第 8 步评估；方案三（差异卡）可基于 plan_fidelity.json 报告低成本生成，待需要时设计。
+- 方案二已实施（口径人工确认 2026-10-23）：`core/fidelity_auditor.py` 只读异构审查者（默认 qwen，`SCRATCH_AUDITOR_PROVIDER` 覆盖；同厂商拒跑），只在确定性核对放行后运行，输出差异卡 `plan_fidelity_review.md` 供人工确认、不进自动门控；离线验收 7 用例全过（`test_plan_fidelity.py` 27/27）。**真实厂商对照待配 Key**：在 config.json 的 api_keys 配 qwen（或智谱/kimi）Key 后跑 `python build/recheck_auditor.py`，重点抽查 01 是否被标出、03/08 是否零项。
+- 方案三（差异卡）已随方案二落地（`format_diff_card`）；处置升级（should/must）待真实语料误报率数据后人工决定。
