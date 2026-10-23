@@ -38,3 +38,5 @@ worker/.wrangler/
 
 # 盲审语料只入库文本+自包含 sb3，散装资产不入库（11.9MB，可重新生成）
 review/corpus/*/project/*/assets/
+# 例外：盲审语料的自包含 sb3 需入库供门控复现
+!review/corpus/*/project.sb3
