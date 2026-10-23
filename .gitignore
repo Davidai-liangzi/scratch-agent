@@ -12,6 +12,7 @@ build/
 
 # ---- 运行时生成（含敏感配置与可重新同步的数据） ----
 config.json
+review/key.json
 assets_lib/
 temp_project/
 
