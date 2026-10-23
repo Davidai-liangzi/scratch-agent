@@ -1,4 +1,4 @@
-"""批次 1 的验收样本：13 个最小 .sb3（10 个缺陷 + 3 个健康）。
+"""批次 1 的验收样本：15 个最小 .sb3（11 个缺陷 + 4 个健康）。
 
 完全离线构造（不调 LLM、不依赖生成管线），每个缺陷样本只注入一种缺陷，
 这样门控失败时能定位到唯一原因。健康样本用来防止「门控永远返回拒绝」也能过验收。
@@ -121,6 +121,12 @@ class Script:
 
     def say(self, text):
         return self.b.add("looks_say", inputs={"MESSAGE": _txt(text)})
+
+    def sayforsecs(self, text, secs):
+        return self.b.add("looks_sayforsecs", inputs={
+            "MESSAGE": _txt(text),
+            "SECONDS": [1, [5, str(secs)]],
+        })
 
     def show(self):
         return self.b.add("looks_show")
@@ -551,11 +557,112 @@ def _broken_dead(out):
                    "有 when clicked 但点击无任何变化", plan, ["M9"], p)
 
 
+def _broken_choice_dead(out):
+    """批次 10 反例（模拟 03 症状）：选择幕的三个选项可见、可点，但点了什么都不做。
+
+    隔离 M10：路线推进改由可响应的 Bell 触发（避开 M9「全死」与 S4 各项），
+    幕链本身完整可达（避开 M7/S3），结算画面正常广播。
+    """
+    p = _Project()
+    p.background()
+    p.var("route", "0")
+    for msg in ("scene_choice", "start_tour", "scene_s1", "scene_s2", "scene_s3",
+                "scene_end", "game_end"):
+        p.msg(msg)
+    st = p.stage()
+    st.script(st.flag(), st.broadcast("scene_choice"))
+
+    for i, sprite_name in enumerate(("OptionA", "OptionB", "OptionC"), start=1):
+        opt = p.sprite(sprite_name, x=-150 + (i - 1) * 150)
+        opt.script(opt.recv("scene_choice"), opt.show())
+        opt.script(opt.clicked())          # 死选项：点击帽是空的
+        opt.script(opt.recv("start_tour"), opt.hide())
+
+    bell = p.sprite("Bell", x=0, y=120)
+    bell.script(bell.recv("scene_choice"), bell.show())
+    route_if = bell.if_var_eq("route", 0)
+    bell.b.stack(route_if, [bell.set_var("route", 1), bell.broadcast("start_tour")])
+    bell.script(bell.clicked(), route_if)  # 有响应的点击目标，让 M9 不触发
+
+    router = p.sprite("Router")
+    ids = [router.recv("start_tour")]
+    for i in (1, 2, 3):
+        ifb = router.if_var_eq("route", i)
+        router.b.stack(ifb, [router.broadcast(f"scene_s{i}")])
+        ids.append(ifb)
+    router.script(*ids)
+
+    for i in (1, 2, 3):
+        station = p.sprite(f"Station{i}")
+        station.script(station.recv(f"scene_s{i}"), station.say(f"路线 {i}"),
+                       station.broadcast("scene_end"))
+
+    fin = p.sprite("Ending")
+    fin.script(fin.recv("scene_end"), fin.say("结束"), fin.broadcast("game_end"))
+    fin.script(fin.recv("game_end"), fin.say("谢谢"))
+
+    plan = _plan("reach", 1,
+                 _beats(("intro", "choice"), ("choice", "routes"),
+                        ("s1", "end"), ("s2", "end"), ("s3", "end"), ("end", "game_end")),
+                 routes=[
+                     {"id": "r1", "option_sprite": "OptionA", "stations": ["s1"]},
+                     {"id": "r2", "option_sprite": "OptionB", "stations": ["s2"]},
+                     {"id": "r3", "option_sprite": "OptionC", "stations": ["s3"]},
+                 ])
+    return _finish(out, "broken_choice_dead", "缺陷-11 选择幕被跳过",
+                   "所有可见选项被点过但全无状态变化", plan, ["M10"], p)
+
+
+def _healthy_quiz(out):
+    """批次 10 正例（仿 02 结构）：问答幕需点击卡片，点击线程先 say X for 2.5 再广播结算。
+
+    旧盲点玩家会在 sayforsecs 挂起期间重复点击同一张卡片、丢失广播（02 误报根因）；
+    状态驱动玩家一次只点一个目标、点击线程没跑完前不重复点击，必须通过。
+    两张卡片都指向结算（答对答错都结束本轮），不依赖选项语义。
+    """
+    p = _Project()
+    p.background()
+    p.var("answered", "0")
+    for msg in ("scene_quiz", "scene_end", "game_end"):
+        p.msg(msg)
+    st = p.stage()
+    st.script(st.flag(), st.broadcast("scene_quiz"))
+
+    host = p.sprite("QuizHost", x=0, y=120)
+    host.script(host.recv("scene_quiz"), host.show(),
+                host.say("1+1 等于几？点一张卡片。"))
+
+    right = p.sprite("AnswerRight", x=-120)
+    r_guard = right.if_var_eq("answered", 0)
+    right.b.stack(r_guard, [right.set_var("answered", 1),
+                            right.sayforsecs("对啦！", 2.5),
+                            right.wait(0.4),
+                            right.broadcast("scene_end")])
+    right.script(right.recv("scene_quiz"), right.show())
+    right.script(right.clicked(), r_guard)
+
+    wrong = p.sprite("AnswerWrong", x=120)
+    w_guard = wrong.if_var_eq("answered", 0)
+    wrong.b.stack(w_guard, [wrong.sayforsecs("找错啦", 2.5),
+                            wrong.wait(0.4),
+                            wrong.broadcast("scene_end")])
+    wrong.script(wrong.recv("scene_quiz"), wrong.show())
+    wrong.script(wrong.clicked(), w_guard)
+
+    fin = p.sprite("Ending")
+    fin.script(fin.recv("scene_end"), fin.say("结算画面"), fin.broadcast("game_end"))
+    fin.script(fin.recv("game_end"), fin.say("谢谢"))
+
+    plan = _plan("reach", 1,
+                 _beats(("intro", "quiz"), ("quiz", "end"), ("end", "game_end")))
+    return _finish(out, "healthy_quiz", "健康-问答点击", "", plan, [], p)
+
+
 BUILDERS = [
-    _healthy_score, _healthy_reach, lambda out: _routes(out, True),
+    _healthy_score, _healthy_reach, lambda out: _routes(out, True), _healthy_quiz,
     _broken_white, _broken_noflag, _broken_freeze, _broken_orphan_send,
     _broken_orphan_recv, _broken_no_score, _broken_no_settle, _broken_clone_leak,
-    _broken_dead, lambda out: _routes(out, False),
+    _broken_dead, lambda out: _routes(out, False), _broken_choice_dead,
 ]
 
 

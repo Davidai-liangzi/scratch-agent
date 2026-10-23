@@ -148,24 +148,84 @@ async function runAssertMode(vm, rt, seconds, forcedRoute, greenFlagScripts) {
     const fingerprint = (vars) =>
       JSON.stringify([posesOf(), vars || stateVars(), cloneAlive.size, sayCount]);
 
+    // ---- 状态驱动玩家（批次 10，方案 B）----
+    // 旧「盲点轮询」会在同一角色的点击线程挂起期间（say X for N / wait）重复点击它，
+    // 导致首个线程恢复后的后续广播丢失（02/07 误报根因）。新策略：
+    // 一次只点一个「可见且带点击帽」的目标；点击后观察状态变化（或超时）再推进；
+    // 同一目标自己的点击线程没跑完之前绝不重复点击（另加冷却兜底）。
+    const OBSERVE_FRAMES = 30;    // 每次点击后最多观察 1s
+    const COOLDOWN_FRAMES = 60;   // 同一目标两次点击至少间隔 2s
+    const IDLE_SCAN_GAP = 15;     // 没有候选目标时 0.5s 后重新扫描
+    const START_FRAME = 60;       // 绿旗 2s 后再开始交互
+
+    // 哪些目标带点击帽（静态判定，克隆体不点，与旧版一致）
+    const hasClickHat = new Map();
+    for (const t of rt.targets) {
+      if (!t.isOriginal) continue;
+      const blocks = t.blocks && t.blocks._blocks ? t.blocks._blocks : {};
+      const want = t.isStage ? 'event_whenstageclicked' : 'event_whenthisspriteclicked';
+      hasClickHat.set(t.id, Object.values(blocks).some((b) => b && b.opcode === want));
+    }
+    const clickThreads = new Map();   // targetId -> Set<Thread>：点击帽启动的线程
+    const lastClickFrame = new Map();
+    let observe = null;               // { rec, before, deadline }
+    let nextScanFrame = START_FRAME;
+
+    const clickBusy = (t) => {
+      const set = clickThreads.get(t.id);
+      if (!set) return false;
+      for (const th of set) {
+        if (rt.threads.includes(th)) return true;   // 线程还在跑（含 PROMISE_WAIT）
+      }
+      set.clear();
+      return false;
+    };
+
     const actions = [];
-    const pending = [];
     const series = {};
     let frozenActive = 0;
     let maxFrozenActive = 0;
 
-    const visibleOriginals = () =>
-      rt.targets.filter((t) => t.isOriginal && !t.isStage && t.visible);
     const click = (t, f) => {
-      const rec = { kind: 'click', sprite: t.getName?.() ?? t.id, frame: f, changed: false };
+      const rec = {
+        kind: 'click',
+        sprite: t.isStage ? '__stage__' : (t.getName?.() ?? t.id),
+        frame: f,
+        changed: false,
+      };
       actions.push(rec);
-      pending.push({ rec, before: fingerprint(), due: f + 12 });
+      lastClickFrame.set(t.id, f);
+      observe = { rec, before: fingerprint(), deadline: f + OBSERVE_FRAMES };
       try {
         vm.postIOData('mouse', {
-          x: t.x + 240, y: 180 - t.y, canvasWidth: 480, canvasHeight: 360,
+          x: (t.x || 0) + 240, y: 180 - (t.y || 0), canvasWidth: 480, canvasHeight: 360,
         });
       } catch (e) { /* 鼠标位置只影响 mouse x/y，不影响点击帽 */ }
-      rt.startHats('event_whenthisspriteclicked', null, t);
+      const opcode = t.isStage ? 'event_whenstageclicked' : 'event_whenthisspriteclicked';
+      const spawned = rt.startHats(opcode, null, t);
+      if (Array.isArray(spawned) && spawned.length > 0) {
+        const set = clickThreads.get(t.id) || new Set();
+        for (const th of spawned) set.add(th);
+        clickThreads.set(t.id, set);
+      }
+    };
+
+    // 最近最少点击优先（LRU）：保证每个候选目标都会被轮到
+    const pickTarget = (f) => {
+      let best = null;
+      let bestKey = Infinity;
+      for (const t of rt.targets) {
+        if (!t.isOriginal || !hasClickHat.get(t.id)) continue;
+        if (!t.isStage && !t.visible) continue;
+        const last = lastClickFrame.get(t.id);
+        if (last !== undefined) {
+          if (f - last < COOLDOWN_FRAMES) continue;
+          if (clickBusy(t)) continue;
+        }
+        const key = last === undefined ? -1 : last;
+        if (best === null || key < bestKey) { best = t; bestKey = key; }
+      }
+      return best;
     };
 
     let prevVars = stateVars();
@@ -178,15 +238,9 @@ async function runAssertMode(vm, rt, seconds, forcedRoute, greenFlagScripts) {
         const routeVar = stage.lookupVariableByNameAndType('route', '');
         if (routeVar) routeVar.value = forcedRoute;
       }
-      if (f === 60) {
-        for (const t of visibleOriginals()) click(t, f);
-        if (forcedRoute > 0) {
-          rt.startHats('event_whenbroadcastreceived',
-            { BROADCAST_OPTION: 'start_tour' }, null);
-        }
-      }
-      if (f === 75 && stage) {
-        rt.startHats('event_whenstageclicked', null, stage);
+      if (f === 60 && forcedRoute > 0) {
+        rt.startHats('event_whenbroadcastreceived',
+          { BROADCAST_OPTION: 'start_tour' }, null);
       }
       // 常用键：按下 2 帧后松开，覆盖 when key pressed
       const KEY_START = 90;
@@ -201,9 +255,11 @@ async function runAssertMode(vm, rt, seconds, forcedRoute, greenFlagScripts) {
           vm.postIOData('keyboard', { key: keys[keyIndex], isDown: false });
         }
       }
-      // 之后每 18 帧点一遍所有可见角色：让「点 3 次才达成」的项目也能推进
-      if (f >= 120 && (f - 120) % 18 === 0) {
-        for (const t of visibleOriginals()) click(t, f);
+      // 状态驱动点击：没有进行中的观察、且到了扫描时点，就点一个 LRU 目标
+      if (f >= START_FRAME && !observe && f >= nextScanFrame) {
+        const t = pickTarget(f);
+        if (t) click(t, f);
+        else nextScanFrame = f + IDLE_SCAN_GAP;
       }
 
       rt._step();
@@ -229,10 +285,16 @@ async function runAssertMode(vm, rt, seconds, forcedRoute, greenFlagScripts) {
         if (frozenActive > maxFrozenActive) maxFrozenActive = frozenActive;
       }
 
-      for (const p of pending) {
-        if (p.done || f < p.due) continue;
-        p.rec.changed = p.before !== fp;
-        p.done = true;
+      // 观察窗结算：窗内任何一帧状态变化即算「点击有反应」
+      if (observe) {
+        if (fp !== observe.before) {
+          observe.rec.changed = true;
+          observe = null;
+          nextScanFrame = f + 1;
+        } else if (f >= observe.deadline) {
+          observe = null;   // rec.changed 保持 false
+          nextScanFrame = f + 1;
+        }
       }
     }
 

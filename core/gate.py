@@ -20,7 +20,8 @@ MAX_CLONE_ALIVE = 100       # 同时存活克隆数硬上限，超过几乎只�
 FROZEN_FRAMES = 120         # 连续多少帧「线程在跑但状态零变化」判卡死
 LEFTOVER_CLONES = 50        # 结束时残留克隆（should 级，沿用 fractch 的既有阈值）
 
-MUST_IDS = ("M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "S1", "S2", "S3", "S4")
+MUST_IDS = ("M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10",
+            "S1", "S2", "S3", "S4")
 
 
 def _vm_invoke():
@@ -59,19 +60,36 @@ def run_vm(sb3_path: str, seconds: int = ASSERT_SECONDS, route: int = 0):
 
 
 def expected_messages(plan: dict) -> list:
-    """从设计文档推导「必须被广播到的消息」：每幕的 next → scene_<next> / start_tour / game_end。"""
+    """从设计文档推导「必须被广播到的消息」：每幕的 next → scene_<next> / start_tour。
+
+    批次 9 修订：game_end 不再计入 must——它是结算画面之后的静默收尾信号，
+    用户不可见；原文档要求的是「无不可达状态」，不是「窗内听到收尾信号」。
+    game_end 缺失由 should 级 C3 记录。
+    """
     out = []
     for beat in plan.get("beats") or []:
         nxt = str(beat.get("next") or "").strip()
-        if not nxt:
+        if not nxt or nxt == "game_end":
             continue
-        if nxt == "game_end":
-            out.append("game_end")
-        elif nxt == "routes":
+        if nxt == "routes":
             out.append("start_tour")
         else:
             out.append("scene_" + nxt.lower())
     return list(dict.fromkeys(out))
+
+
+def settle_message(plan: dict) -> str:
+    """「结算画面」的确定性定义：beats 链中 next==game_end 的那一幕的广播（scene_<id>）。
+
+    plan 链里不存在结算幕时（设计不完整的 fixture），回退到 game_end，
+    保持旧判据防止漏判。
+    """
+    for beat in plan.get("beats") or []:
+        if str(beat.get("next") or "").strip() == "game_end":
+            bid = str(beat.get("id") or "").strip()
+            if bid:
+                return "scene_" + bid.lower()
+    return "game_end"
 
 
 def _sends(run: dict) -> set:
@@ -193,9 +211,9 @@ def check(plan: dict, run: dict, route: int = 0) -> dict:
         if not values or max(values) <= start:
             add(must, "S1", "计分类项目里 score 从未增长",
                 series_size=len(values), last=values[-1] if values else None)
-        elif win_value is not None and max(values) >= win_value and "game_end" not in sends:
+        elif win_value is not None and max(values) >= win_value and settle_message(plan) not in sends:
             reached = next((f for f, v in score_series if v >= win_value), None)
-            add(must, "S1", f"score 已达到胜利值 {win_value} 但没有结算广播 game_end",
+            add(must, "S1", f"score 已达到胜利值 {win_value} 但没有走到结算画面广播 {settle_message(plan)}",
                 reached_frame=reached, max_score=max(values))
 
     if win_type == "time":
@@ -206,11 +224,11 @@ def check(plan: dict, run: dict, route: int = 0) -> dict:
         else:
             if values[-1] >= values[0]:
                 add(must, "S2", "倒计时没有递减", first=values[0], last=values[-1])
-            elif min(values) <= 0 and "game_end" not in sends:
-                add(must, "S2", "倒计时已归零但没有结算广播 game_end", min_value=min(values))
+            elif min(values) <= 0 and settle_message(plan) not in sends:
+                add(must, "S2", f"倒计时已归零但没有走到结算画面广播 {settle_message(plan)}", min_value=min(values))
 
-    if win_type == "reach" and "game_end" not in sends:
-        add(must, "S3", "通关类项目没能走到 game_end",
+    if win_type == "reach" and settle_message(plan) not in sends:
+        add(must, "S3", f"通关类项目没能走到结算画面 {settle_message(plan)}",
             route=route or "未强制路线")
 
     routes = plan.get("routes") or []
@@ -234,6 +252,24 @@ def check(plan: dict, run: dict, route: int = 0) -> dict:
         if still_visible:
             add(must, "S4", "选项角色收到 start_tour 后没有隐藏", targets=still_visible)
 
+        # 批次 10（方案 B）：选择幕「点了没反应」断言（口径已人工确认）。
+        # 只在路线 0（自然选择）判定；强制路线跑绕过选择环节，选项失灵属正常。
+        # M10 = 所有声明的选项都被点过（玩家只点可见目标）且全部无状态变化
+        #       = 选择幕被跳过（03 症状）；部分失灵记 should C4，不阻断。
+        option_names = sorted(n for n in options if n)
+        if option_names and not route:
+            clicked_opts = [n for n in option_names
+                            if any(a.get("sprite") == n for a in clicks)]
+            dead_opts = [n for n in clicked_opts
+                         if not any(a.get("sprite") == n and a.get("changed") for a in clicks)]
+            if clicked_opts and len(clicked_opts) == len(option_names) \
+                    and len(dead_opts) == len(clicked_opts):
+                add(must, "M10",
+                    "选择幕的所有可见选项都被点过，但没有一个引起状态变化（选择幕被跳过）",
+                    options=dead_opts)
+            elif dead_opts:
+                add(should, "C4", "选择幕中部分选项被点后没有状态变化", options=dead_opts)
+
     # ---------------- should 级 ----------------
     if int(clones.get("aliveAtEnd") or 0) > LEFTOVER_CLONES:
         add(should, "C1", "运行结束时仍残留大量克隆体",
@@ -249,6 +285,11 @@ def check(plan: dict, run: dict, route: int = 0) -> dict:
             dead.append(sprite)
     if dead:
         add(should, "C2", "这些角色有点击帽子但点击后没有任何变化", targets=dead)
+
+    # 批次 9：game_end 是结算画面之后的收尾信号，用户不可见，缺失只记录不阻断
+    if any(str(b.get("next") or "").strip() == "game_end"
+           for b in plan.get("beats") or []) and "game_end" not in sends:
+        add(should, "C3", "收尾信号 game_end 未广播（结算画面已到达，不阻断）")
 
     return {
         "passed": not must,

@@ -484,8 +484,22 @@ def _emit_step(step_cb, kind, status, title, detail=""):
 # 墙钟超过 GATE_TIMEOUT_SECONDS 也不再开始下一轮。must 不通过才回炉，should 只记录。
 GATE_MAX_ROUNDS = 3
 GATE_TIMEOUT_SECONDS = 300
-GATE_ASSERT_SECONDS = PLAYTEST_SECONDS
+GATE_ASSERT_SECONDS = PLAYTEST_SECONDS   # 断言窗下限（plan 无台词时的兜底）
+GATE_ASSERT_SECONDS_MAX = 60             # 上限：保证熔断预算内还能回炉 3 轮
 PLAN_FILE = "plan.json"
+
+
+def estimate_gate_seconds(plan: dict) -> int:
+    """批次 9：断言窗挂钩 plan 自身设计的流程时长。
+
+    写死 15 秒窗与长台词流程（plan 常见 10~20 句）结构性冲突，
+    导致「结算画面必然落在窗外」的系统性误报（盲审 3/6 FP）。
+    估算口径：台词 2.5 秒/句 × 1.5 倍余量，钳制在 [15, 60]。
+    """
+    lines = sum(len(b.get("dialogue") or [])
+                for b in (plan or {}).get("beats") or [])
+    return min(GATE_ASSERT_SECONDS_MAX,
+               max(GATE_ASSERT_SECONDS, int(lines * 2.5 * 1.5)))
 
 
 def save_plan(work_dir: str, plan: dict) -> str:
@@ -583,14 +597,17 @@ def _write_gate_report(output_sb3: str, report: dict) -> str:
 def enforce_gate(plan: dict, sb3_path: str, repair_fn=None,
                  max_rounds: int = GATE_MAX_ROUNDS,
                  timeout: float = GATE_TIMEOUT_SECONDS,
-                 seconds: int = GATE_ASSERT_SECONDS,
+                 seconds: int = None,
                  plan_path: str = "",
                  clock=time.monotonic, log=print) -> dict:
     """must 失败 → 带症状回炉；连续失败或超时 → 熔断并写结构化失败报告。
 
     repair_fn(feedback) 负责修复并重新打包，成功返回 True。
     repair_fn 为 None 表示禁止自动修复（例如多路线项目的控制流由装配器生成）。
+    seconds 为 None 时按 plan 台词量估算断言窗（批次 9）。
     """
+    if seconds is None:
+        seconds = estimate_gate_seconds(plan)
     started = clock()
     rounds = []
     reason = ""
