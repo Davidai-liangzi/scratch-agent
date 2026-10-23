@@ -11,6 +11,7 @@ from core import (
     critic,
     gate,
     layout_check,
+    plan_fidelity,
     planner,
     playtest,
     schemas,
@@ -758,6 +759,21 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                 elif cast_report.get("problems"):
                     print("🎨 视觉选角提示：" + "；".join(cast_report["problems"][:2]))
                 _emit_step(step_cb, "casting", "done", "视觉选角")
+            # 批次 11：plan 忠实性确定性核对（硬冲突口径，人工确认 2026-10-23）。
+            # 观察期只记录并落盘 plan_fidelity.json，不拦截生成；回炉/拦截的处置
+            # 口径需另行人工确认（红线：被门控模型不能自证忠实）。
+            fid = plan_fidelity.check_plan_fidelity(user_prompt, plan)
+            if fid["must"] or fid["should"]:
+                try:
+                    with open(os.path.join(work_dir, "plan_fidelity.json"), "w",
+                              encoding="utf-8") as fh:
+                        json.dump(fid, fh, ensure_ascii=False, indent=2)
+                except OSError:
+                    pass
+                for m in fid["must"]:
+                    print(f"⛔ plan 忠实性（must）：{m['id']} {m['detail']}")
+                for s in fid["should"]:
+                    print(f"⚠️ plan 忠实性（should）：{s['id']} {s['detail']}")
             try:
                 if plan.get("routes"):
                     # 多路线项目：控制流（Stage/调度器/选项/站点等待）全部由装配器生成，
