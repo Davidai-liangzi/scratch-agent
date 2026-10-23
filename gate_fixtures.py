@@ -114,10 +114,30 @@ class Script:
         return self.b.add("event_whenbroadcastreceived", fields={
             "BROADCAST_OPTION": [msg, _msg_id(msg)]})
 
+    def key(self, display):
+        # sb3 里 KEY_OPTION 字段用 Scratch 键名（"right arrow"/"space"...），
+        # 与 keyboard IO 的 _keyStringToScratchKey 归一化结果一致。
+        return self.b.add("event_whenkeypressed", fields={"KEY_OPTION": [display, ""]})
+
     # ---- 动作 ----
     def broadcast(self, msg):
         return self.b.add("event_broadcast", inputs={
             "BROADCAST_INPUT": [1, [11, msg, _msg_id(msg)]]})
+
+    def gotoxy(self, x, y):
+        return self.b.add("motion_gotoxy", inputs={"X": _lit(x), "Y": _lit(y)})
+
+    def change_x(self, v):
+        return self.b.add("motion_changexby", inputs={"DX": _lit(v)})
+
+    def change_y(self, v):
+        return self.b.add("motion_changeyby", inputs={"DY": _lit(v)})
+
+    def set_x(self, v):
+        return self.b.add("motion_setx", inputs={"X": _lit(v)})
+
+    def set_y(self, v):
+        return self.b.add("motion_sety", inputs={"Y": _lit(v)})
 
     def say(self, text):
         return self.b.add("looks_say", inputs={"MESSAGE": _txt(text)})
@@ -161,6 +181,68 @@ class Script:
             "OPERAND2": _lit(value),
         })
         return self.b.add("control_if", inputs={"CONDITION": [2, cond]})
+
+    def pos_cmp(self, axis, op, value):
+        """x/y 位置比较条件（operator_gt / operator_lt），返回条件块 id。"""
+        rep = self.b.add(f"motion_{axis}position")
+        cond = self.b.add("operator_gt" if op == ">" else "operator_lt", inputs={
+            "OPERAND1": [2, rep],
+            "OPERAND2": _lit(value),
+        })
+        self.b.d[rep]["parent"] = cond
+        return cond
+
+    def if_then(self, cond_id, action_id):
+        """control_if + 单块动作。"""
+        ifb = self.b.add("control_if", inputs={"CONDITION": [2, cond_id]})
+        self.b.d[cond_id]["parent"] = ifb
+        self.b.stack(ifb, [action_id])
+        return ifb
+
+    def touching_cond(self, sprite):
+        """sensing_touchingobject(角色名) 条件块 id。
+        注意：无头 VM 没有 renderer，该条件恒为 false（isTouchingSprite 直接返回），
+        fixture 里不要用它做通关判据，用 dist_lt 代替。"""
+        menu = self.b.add("sensing_touchingobjectmenu",
+                          fields={"TOUCHINGOBJECTMENU": [sprite, ""]}, shadow=True)
+        cond = self.b.add("sensing_touchingobject",
+                          inputs={"TOUCHINGOBJECTMENU": [1, menu]})
+        self.b.d[menu]["parent"] = cond
+        return cond
+
+    def dist_lt(self, sprite, radius):
+        """distance to <sprite> < radius 条件块 id（sensing_distanceto 是纯计算，
+        无头可用；40px ≈ 两个 60×60 造型贴边时的中心距，等效「碰到」）。"""
+        dist = self.b.add("sensing_distanceto", shadow=False,
+                          fields={"DISTANCETOMENU": [sprite, ""]})
+        cond = self.b.add("operator_lt", inputs={
+            "OPERAND1": [2, dist],
+            "OPERAND2": _lit(radius),
+        })
+        self.b.d[dist]["parent"] = cond
+        return cond
+
+    def wait_until_near(self, sprite, radius=40):
+        cond = self.dist_lt(sprite, radius)
+        wu = self.b.add("control_wait_until", inputs={"CONDITION": [2, cond]})
+        self.b.d[cond]["parent"] = wu
+        return wu
+
+    def music_instrument(self, i=10):
+        """music_setInstrument：无头 VM 未注册该原语，靠 run.js 扩展 stub 改写存活。"""
+        return self.b.add("music_setInstrument", inputs={"INSTRUMENT": [1, [6, str(i)]]})
+
+    def music_note(self, note=60, beats=0.25):
+        return self.b.add("music_playNoteForBeats", inputs={
+            "NOTE": [1, [6, str(note)]], "BEATS": [1, [4, str(beats)]],
+        })
+
+    def wait_until_key(self, key="space"):
+        """until sensing.keypressed(key)：轮询门，靠扫屏周期性空格长按破。"""
+        cond = self.b.add("sensing_keypressed", fields={"KEY_OPTION": [key, ""]})
+        wu = self.b.add("control_wait_until", inputs={"CONDITION": [2, cond]})
+        self.b.d[cond]["parent"] = wu
+        return wu
 
     def clone_self(self):
         cid = self.b.add("control_create_clone_of")
@@ -658,8 +740,152 @@ def _healthy_quiz(out):
     return _finish(out, "healthy_quiz", "健康-问答点击", "", plan, [], p)
 
 
+def _healthy_nav(out):
+    """批次 12 反例（正样本性质，仿 hetero_live_9jy3gl2y 实测被误杀的真实候选）：
+
+    方向键导航碰固定目标：角色每按一次移动 12px（带边界 clamp），
+    3 个固定坐标的可见目标，靠近（中心距<40px）→ score+=1 并消失，
+    集满广播结算幕 scene_end。旧「四键轮流各短按一次」净位移≈0、角色原地
+    振荡，在此样本上必然复现 S1「score 从未增长」误报；分段扫屏玩家必须通关。
+
+    与证据游戏的实现差异：证据游戏用 sensing.touchingobject 轮询碰取，但无头
+    VM 没有 renderer，该谓词恒为 false（scratch-vm isTouchingSprite 要求
+    this.renderer），任何按键策略都无法通关——故样本用无头可计算的
+    distance to < 40 等效「碰到」（两个 60×60 造型贴边中心距），导航/碰取/
+    结算结构不变。touching 恒 false 的问题见批次 12 报告，需人工裁决。
+    """
+    p = _Project()
+    p.background()
+    p.var("score", "0")
+    p.watch("score")
+    for msg in ("scene_play", "collected", "scene_end", "game_end"):
+        p.msg(msg)
+    st = p.stage()
+    st.script(st.flag(), st.broadcast("scene_play"))
+
+    # 小猫：绿旗站到舞台中心，四个方向键各移动 12px 并 clamp 在舞台内
+    # （与证据游戏 CatPlayer 同构：when key 帽 + change_x 12 + 边界 set_x）
+    cat = p.sprite("Cat", x=0, y=0)
+    cat.script(cat.flag(), cat.gotoxy(0, 0), cat.show())
+
+    def nav(display, mover, axis, lo, hi):
+        hat = cat.key(display)
+        move = mover()
+        hi_if = cat.if_then(cat.pos_cmp(axis, ">", hi),
+                            cat.set_x(hi) if axis == "x" else cat.set_y(hi))
+        lo_if = cat.if_then(cat.pos_cmp(axis, "<", lo),
+                            cat.set_x(lo) if axis == "x" else cat.set_y(lo))
+        cat.script(hat, move, hi_if, lo_if)
+
+    nav("right arrow", lambda: cat.change_x(12), "x", -220, 220)
+    nav("left arrow", lambda: cat.change_x(-12), "x", -220, 220)
+    nav("up arrow", lambda: cat.change_y(12), "y", -160, 160)
+    nav("down arrow", lambda: cat.change_y(-12), "y", -160, 160)
+
+    # 3 个固定坐标礼物：靠近小猫（中心距<40px，等效碰到）→ +1 分、广播 collected、消失。
+    # 坐标按 36 帧横向脉冲周期设计：小猫每脉冲 +12px（x=12/24/36/48…@f90/126/162/198），
+    # Gift1 在 x=36 处进入 40px 半径（f≈162），Gift2/Gift3 在 x=48 处进入（f≈198），
+    # 结算在 240 帧窗内完成；旧策略振荡点 (±12,0)/(0,±12) 到三点距离 52/66/66 均 >40，
+    # 永远碰不到 → 必然复现 S1 误报。
+    for i, (gx, gy) in enumerate(((55, 30), (72, -28), (78, 8)), start=1):
+        gift = p.sprite(f"Gift{i}", x=gx, y=gy)
+        gift.script(gift.recv("scene_play"), gift.gotoxy(gx, gy), gift.show(),
+                    gift.wait_until_near("Cat", 40),
+                    gift.change_var("score", 1),
+                    gift.broadcast("collected"), gift.hide())
+
+    owl = p.sprite("Owl", x=-200, y=150)
+    win_if = owl.if_var_gt("score", 2)
+    owl.b.stack(win_if, [owl.broadcast("scene_end")])
+    owl.script(owl.recv("collected"), owl.show(), win_if)
+
+    fin = p.sprite("Ending", x=0, y=150)
+    fin.script(fin.recv("scene_end"), fin.say("集满 3 个礼物！"), fin.broadcast("game_end"))
+    fin.script(fin.recv("game_end"), fin.say("谢谢"))
+
+    plan = _plan("score", 3, _beats(("intro", "play"), ("play", "end"), ("end", "game_end")))
+    return _finish(out, "healthy_nav", "健康-导航碰取", "", plan, [], p)
+
+
+def _healthy_act_chain_music(out):
+    """批次 12 反例（正样本性质，仿 hetero_live_kgvzviv9 真实候选）：
+
+    幕链线程里混入 music 积木 + `until keypressed space` 轮询门：
+    - 无头 VM 不加载 music 扩展，music_setInstrument 是未注册原语，旧 runner 下
+      intro 线程在此静默死亡 → scene_play 永不广播 → M7+S1 误报；
+    - 旧扫屏表空格首脉冲在 ≈990 帧，22s 窗内一次都不按 → 即使线程活着，
+      轮询门也过不去。
+    修复口径 A（扩展 opcode stub）+ B（周期性空格长按）后必须通关。
+    碰取沿用距离等效（与 _healthy_nav 同构），验证 stub 不影响其余判据。
+    """
+    p = _Project()
+    p.background()
+    p.var("score", "0")
+    p.watch("score")
+    for msg in ("scene_intro", "scene_play", "collected", "scene_end", "game_end"):
+        p.msg(msg)
+    st = p.stage()
+    st.script(st.flag(), st.broadcast("scene_intro"))
+
+    # IntroOwl：台词 → music 积木（stub 改写为等待）→ 空格轮询门 → 广播 play 幕
+    owl = p.sprite("IntroOwl", x=-140, y=-100)
+    owl.script(owl.recv("scene_intro"), owl.show(),
+               owl.sayforsecs("小猫要替猫头鹰找回 3 个礼物盒。", 1.5),
+               owl.sayforsecs("按空格键，寻宝开始！", 1.5),
+               owl.music_instrument(), owl.music_note(),
+               owl.wait_until_key("space"),
+               owl.hide(), owl.broadcast("scene_play"))
+
+    # 小猫：方向键导航（when key 帽 + clamp），与 _healthy_nav 同构
+    cat = p.sprite("Cat", x=0, y=0)
+    cat.script(cat.recv("scene_play"), cat.gotoxy(0, 0), cat.show())
+
+    def nav(display, mover, axis, lo, hi):
+        hat = cat.key(display)
+        move = mover()
+        hi_if = cat.if_then(cat.pos_cmp(axis, ">", hi),
+                            cat.set_x(hi) if axis == "x" else cat.set_y(hi))
+        lo_if = cat.if_then(cat.pos_cmp(axis, "<", lo),
+                            cat.set_x(lo) if axis == "x" else cat.set_y(lo))
+        cat.script(hat, move, hi_if, lo_if)
+
+    nav("right arrow", lambda: cat.change_x(12), "x", -220, 220)
+    nav("left arrow", lambda: cat.change_x(-12), "x", -220, 220)
+    nav("up arrow", lambda: cat.change_y(12), "y", -160, 160)
+    nav("down arrow", lambda: cat.change_y(-12), "y", -160, 160)
+
+    # 3 个固定坐标礼物（坐标设计同 _healthy_nav：scene_play ≈ 帧 120 后小猫
+    # 以 12px/36 帧横穿，f≈342/378/414 依次进入 40px 半径）
+    for i, (gx, gy) in enumerate(((55, 30), (72, -28), (78, 8)), start=1):
+        gift = p.sprite(f"Gift{i}", x=gx, y=gy)
+        gift.script(gift.recv("scene_play"), gift.gotoxy(gx, gy), gift.show(),
+                    gift.wait_until_near("Cat", 40),
+                    gift.change_var("score", 1),
+                    gift.broadcast("collected"), gift.hide())
+
+    judge = p.sprite("Judge", x=-200, y=150)
+    win_if = judge.if_var_gt("score", 2)
+    judge.b.stack(win_if, [judge.broadcast("scene_end")])
+    judge.script(judge.recv("collected"), judge.show(), win_if)
+
+    fin = p.sprite("Ending", x=0, y=150)
+    fin.script(fin.recv("scene_end"), fin.say("集满 3 个礼物！"), fin.broadcast("game_end"))
+    fin.script(fin.recv("game_end"), fin.say("谢谢"))
+
+    plan = _plan("score", 3, [
+        {"id": "intro", "next": "play",
+         "dialogue": ["交代任务。", "按空格出发。", "礼物藏在树影间。",
+                      "靠近就收集。", "集满进结算。", "展示得分。",
+                      "宣布结果。", "说结束语。", "收尾。"]},
+        {"id": "play", "next": "end"},
+        {"id": "end", "next": "game_end"},
+    ])
+    return _finish(out, "healthy_act_chain_music", "健康-幕链音乐", "", plan, [], p)
+
+
 BUILDERS = [
     _healthy_score, _healthy_reach, lambda out: _routes(out, True), _healthy_quiz,
+    _healthy_nav, _healthy_act_chain_music,
     _broken_white, _broken_noflag, _broken_freeze, _broken_orphan_send,
     _broken_orphan_recv, _broken_no_score, _broken_no_settle, _broken_clone_leak,
     _broken_dead, lambda out: _routes(out, False), _broken_choice_dead,

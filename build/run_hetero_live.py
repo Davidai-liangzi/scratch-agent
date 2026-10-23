@@ -61,22 +61,45 @@ def main() -> int:
     print(f"需求：{REQUIREMENT}\n")
 
     # —— 真实救援链：qwen 候选 → 重建打包 → 同一确定性门控 ——
+    # 门控返回后、恢复现场前，把候选现场快照留存（否则采纳/恢复后证据全丢，无法诊断）
+    def snapshot(tag):
+        keep = os.path.join(tmp, "candidate_" + tag)
+        shutil.copytree(work, os.path.join(keep, "work"), dirs_exist_ok=True)
+        shutil.copy2(sb3, os.path.join(keep, "game.sb3"))
+        if os.path.exists(gate_report_path(sb3)):
+            shutil.copy2(gate_report_path(sb3),
+                         os.path.join(keep, "game.gate.json"))
+        print(f"📦 候选现场已留存：{keep}")
+
     def generate_fn():
         p = hetero.generate_plan(REQUIREMENT, log=print)
         if p is None:
             return None
         print(f"🧪 候选 plan：{len(p.get('beats') or [])} 幕，"
               f"routes={len(p.get('routes') or [])}，标题「{p.get('title')}」")
+        with open(os.path.join(tmp, "candidate_plan.json"), "w",
+                  encoding="utf-8") as fh:
+            json.dump(p, fh, ensure_ascii=False, indent=2)
         fid = plan_fidelity.check_plan_fidelity(REQUIREMENT, p)
         print(f"🧪 候选确定性核对（信息项）：verdict={fid['verdict']} "
               f"must={len(fid['must'])} should={len(fid['should'])}")
         return p
 
+    def gate_fn(p, s):
+        r = enforce_gate(p, s, None, max_rounds=1, log=print)
+        snapshot("gated")
+        # snapshot 复制到的是预种的原产物熔断报告；用候选自己的门控报告覆盖，
+        # 保证快照目录独立可读（否则单独看 candidate_gated 会误以为候选被拒）。
+        with open(os.path.join(tmp, "candidate_gated", "game.gate.json"),
+                  "w", encoding="utf-8") as fh:
+            json.dump(r, fh, ensure_ascii=False, indent=2)
+        return r
+
     cand, report = hetero_rescue_gate(
         REQUIREMENT, failed_report, sb3, work,
         generate_fn=generate_fn,
         rebuild_fn=lambda p: _rebuild_from_plan(p, work, sb3, log=print),
-        gate_fn=lambda p, s: enforce_gate(p, s, None, max_rounds=1, log=print),
+        gate_fn=gate_fn,
         log=print)
 
     # —— 现场语义断言 ——

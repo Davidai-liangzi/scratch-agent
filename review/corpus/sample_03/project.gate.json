@@ -7,9 +7,9 @@
       "must": [
         {
           "id": "M4",
-          "symptom": "疑似卡死：连续 1666 帧线程在跑但状态零变化",
+          "symptom": "疑似卡死：连续 299 帧线程在跑但状态零变化",
           "evidence": {
-            "frames": 1666,
+            "frames": 299,
             "threshold": 120
           },
           "route": 0
@@ -19,16 +19,18 @@
           "symptom": "设计文档要求的幕链在实跑中没有走到",
           "evidence": {
             "missing": [
-              "scene_beauty_end",
-              "scene_beauty_game",
-              "scene_ending",
               "scene_food_end",
               "scene_food_game",
               "scene_cinema_end",
               "scene_cinema_game"
             ],
             "sent": [
+              "game_end",
+              "scene_beauty_end",
+              "scene_beauty_end_play",
               "scene_beauty_entrance",
+              "scene_beauty_game",
+              "scene_ending",
               "scene_intro",
               "scene_route_choice",
               "start_tour"
@@ -160,23 +162,16 @@
           "route": 3
         }
       ],
-      "should": [
-        {
-          "id": "C3",
-          "symptom": "收尾信号 game_end 未广播（结算画面已到达，不阻断）",
-          "evidence": {},
-          "route": 0
-        }
-      ],
+      "should": [],
       "frames": 1800
     }
   ],
   "must": [
     {
       "id": "M4",
-      "symptom": "疑似卡死：连续 1666 帧线程在跑但状态零变化",
+      "symptom": "疑似卡死：连续 299 帧线程在跑但状态零变化",
       "evidence": {
-        "frames": 1666,
+        "frames": 299,
         "threshold": 120
       },
       "route": 0
@@ -186,16 +181,18 @@
       "symptom": "设计文档要求的幕链在实跑中没有走到",
       "evidence": {
         "missing": [
-          "scene_beauty_end",
-          "scene_beauty_game",
-          "scene_ending",
           "scene_food_end",
           "scene_food_game",
           "scene_cinema_end",
           "scene_cinema_game"
         ],
         "sent": [
+          "game_end",
+          "scene_beauty_end",
+          "scene_beauty_end_play",
           "scene_beauty_entrance",
+          "scene_beauty_game",
+          "scene_ending",
           "scene_intro",
           "scene_route_choice",
           "start_tour"
@@ -327,25 +324,17 @@
       "route": 3
     }
   ],
-  "should": [
-    {
-      "id": "C3",
-      "symptom": "收尾信号 game_end 未广播（结算画面已到达，不阻断）",
-      "evidence": {},
-      "route": 0
-    }
-  ],
+  "should": [],
   "slices": [
-    "广播:scene_beauty_end",
-    "广播:scene_beauty_game",
-    "广播:scene_ending",
     "广播:scene_food_end",
     "广播:scene_food_game",
     "广播:scene_cinema_end",
-    "广播:scene_cinema_game"
+    "广播:scene_cinema_game",
+    "广播:scene_beauty_end",
+    "广播:scene_beauty_game"
   ],
   "plan": "C:\\Users\\16968\\PycharmProjects\\WelcomeScreen\\review\\corpus\\sample_03\\plan.json",
-  "elapsed": 308.7,
+  "elapsed": 362.3,
   "max_rounds": 1,
   "timeout": 300
 }

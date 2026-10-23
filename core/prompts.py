@@ -224,7 +224,12 @@ _SYSTEM_PROMPT_CORE = """
   sensing.mousedown();  sensing.mousex();  sensing.mousey();
   sensing.keypressed(KEY_OPTION: sensing.keyoptions("space"));
   sensing.touchingobject(TOUCHINGOBJECTMENU: "_mouse_");   # 碰到鼠标；碰到角色填角色名
-  sensing.distanceto(DISTANCETOMENU: "_mouse_");
+  # ⚠️ 碰到**角色**不得用于得分/胜负/消除判定：质检在 headless 无渲染环境跑，
+  # 角色间 touching 恒为 false，会让可通关的游戏被误判成「玩不起来」而反复回炉。
+  # 「碰到就加分/收集」一律写成距离等效（视觉语义等价，按角色大小调阈值）：
+  #   if sensing.distanceto(DISTANCETOMENU: "目标角色名") < 40 { score += 1; hide; }
+  #   或：until sensing.distanceto(DISTANCETOMENU: "目标角色名") < 40 { wait 0.1; }
+  sensing.distanceto(DISTANCETOMENU: "_mouse_");   # 到鼠标距离；到角色填角色名
   reset_timer;  sensing.timer();
   answer;                            # ask 之后取用户输入
   sensing.setdragmode(DRAG_MODE: "draggable");   # 允许拖动角色：draggable / not draggable

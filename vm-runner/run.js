@@ -158,6 +158,67 @@ async function runAssertMode(vm, rt, seconds, forcedRoute, greenFlagScripts) {
     const IDLE_SCAN_GAP = 15;     // 没有候选目标时 0.5s 后重新扫描
     const START_FRAME = 60;       // 绿旗 2s 后再开始交互
 
+    // ---- 按键策略：分段扫屏（批次 12 修复）----
+    // 旧「四键轮流各短按一次」对「方向键导航碰固定目标」类游戏净位移≈0：
+    // 角色原地振荡，永远碰不到固定坐标的目标 → S1 误报（hetero_live_9jy3gl2y 实测）。
+    // 新策略：按人工确认口径的段序（右25→左50→下25→上50→右25→左25→上25→下50，
+    // 段间穿插空格脉冲），每段连发多次独立「按下 2 帧→松开」脉冲——离散脉冲同时
+    // 兼容 when key 帽（按下沿触发一次）与 forever+if key pressed（按下期间逐步移动），
+    // 不能长按住。
+    // 参数与旧口径的两处偏差（人工验收语料倒逼，详见批次 12 报告）：
+    //  1) 横向脉冲周期 36 帧（≈1.2s，按下 2 帧+松开 34 帧），不是 4 帧：
+    //     sample_09「接蛋糕」类游戏的篮子按 sensing keypressed 状态每 0.05s 移动一步，
+    //     蛋糕在下落（约 80 帧）期间要求篮子位移 <40px 才能接住（abs(x-Basket.x)<40 判定）；
+    //     4 帧周期横穿速度 ≈90px/s 会让蛋糕全 miss → misses≥3 提前终局 → S1 误报。
+    //     36 帧周期把横速压到 ≈12px/s，慢而持续，仍能撞墙完成横穿扫屏。
+    //  2) 纵向/空格保持 4 帧快周期：接取类游戏不响应上下键，纵向快节奏补覆盖率。
+    // 一轮 = 125×36 + 150×4 + 8×4 ≈ 5132 帧；断言窗（最长 60s≈1800 帧）跑不完
+    // 就循环下一轮（导航类样本的目标都在首段横穿路径上，8s 窗内可通关）。
+    const KEY_START = 90;         // 语义不变：绿旗 3s 后开始按键
+    const H_PULSE = 36;           // 横向脉冲周期（按下 2 帧 + 松开 34 帧）
+    const V_PULSE = 4;            // 纵向/空格脉冲周期（按下 2 帧 + 松开 2 帧）
+    // 周期性空格长按（批次 12 修复，口径 B）：幕链里的 `until sensing.keypressed`
+    // 轮询门（如 hetero_live_kgvzviv9 的 IntroOwl，循环体 ≈2s）只在每轮迭代采样
+    // 一次条件，2 帧短脉冲几乎必然错过；且旧表里空格首脉冲在 ≈990 帧，660 帧断言
+    // 窗内一次都没按过。改为每 300 帧（10s）长按 60 帧（2s）：采样间隔 ≤2s 的
+    // 轮询门必中，when key "space" 帽也在按下沿触发。
+    const SPACE_EVERY = 300;
+    const SPACE_HOLD = 60;
+    const SWEEP = (() => {
+      const segs = [
+        ['ArrowRight', 25, H_PULSE], [' ', 1, V_PULSE],
+        ['ArrowLeft', 50, H_PULSE], [' ', 1, V_PULSE],
+        ['ArrowDown', 25, V_PULSE], [' ', 1, V_PULSE],
+        ['ArrowUp', 50, V_PULSE], [' ', 1, V_PULSE],
+        ['ArrowRight', 25, H_PULSE], [' ', 1, V_PULSE],
+        ['ArrowLeft', 25, H_PULSE], [' ', 1, V_PULSE],
+        ['ArrowUp', 25, V_PULSE], [' ', 1, V_PULSE],
+        ['ArrowDown', 50, V_PULSE], [' ', 1, V_PULSE],
+      ];
+      const events = new Map();   // local 帧 -> [{key, isDown}]（一帧可有多键事件）
+      const push = (f, key, isDown) => {
+        const arr = events.get(f) || [];
+        arr.push({ key, isDown });
+        events.set(f, arr);
+      };
+      let t = 0;
+      for (const [key, n, period] of segs) {
+        for (let i = 0; i < n; i += 1) {
+          // 落在长按窗内的空格短脉冲跳过：其 +2 帧松开会把长按截断
+          if (!(key === ' ' && (t % SPACE_EVERY) < SPACE_HOLD)) {
+            push(t, key, true);
+            push(t + 2, key, false);
+          }
+          t += period;
+        }
+      }
+      for (let s = 0; s < t; s += SPACE_EVERY) {
+        push(s, ' ', true);
+        push(s + SPACE_HOLD, ' ', false);
+      }
+      return { cycle: t, events };
+    })();
+
     // 哪些目标带点击帽（静态判定，克隆体不点，与旧版一致）
     const hasClickHat = new Map();
     for (const t of rt.targets) {
@@ -242,17 +303,14 @@ async function runAssertMode(vm, rt, seconds, forcedRoute, greenFlagScripts) {
         rt.startHats('event_whenbroadcastreceived',
           { BROADCAST_OPTION: 'start_tour' }, null);
       }
-      // 常用键：按下 2 帧后松开，覆盖 when key pressed
-      const KEY_START = 90;
-      const KEY_GAP = 7;
-      const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '];
-      const keyIndex = Math.floor((f - KEY_START) / KEY_GAP);
-      if (f >= KEY_START && keyIndex >= 0 && keyIndex < keys.length) {
-        const offset = (f - KEY_START) % KEY_GAP;
-        if (offset === 0) {
-          vm.postIOData('keyboard', { key: keys[keyIndex], isDown: true });
-        } else if (offset === 2) {
-          vm.postIOData('keyboard', { key: keys[keyIndex], isDown: false });
+      // 分段扫屏：按 SWEEP 事件表轮转脉冲（一帧可有多键事件），跑完一轮回到 0 继续
+      if (f >= KEY_START) {
+        const local = (f - KEY_START) % SWEEP.cycle;
+        const evs = SWEEP.events.get(local);
+        if (evs) {
+          for (const e of evs) {
+            vm.postIOData('keyboard', { key: e.key, isDown: e.isDown });
+          }
         }
       }
       // 状态驱动点击：没有进行中的观察、且到了扫描时点，就点一个 LRU 目标
@@ -406,6 +464,40 @@ async function main() {
 
   const bytes = fs.readFileSync(sb3Path);
   await muted(() => vm.loadProject(toArrayBuffer(bytes)));
+
+  // ---- 扩展 opcode stub（批次 12 修复，口径 A：环境仿真）----
+  // 无头 VM 不加载任何扩展：music_* / pen_* 是未注册原语，sequencer 遇到未知
+  // opcode 会静默终止当前线程且不发错误事件（hetero_live_kgvzviv9 实证：
+  // IntroOwl 在 music_setInstrument 处线程死亡，scene_play 永不广播 → M7+S1
+  // 误报；真实 Scratch 里这些积木正常工作，属于无头盲区而非候选缺陷）。
+  // 处置：加载工程后把扩展命令块改写为等价的 control_wait（BEATS/TEMPO 等
+  // 数值输入映射到 DURATION，保留原值子树，时长语义近似），幕链线程得以跑完。
+  for (const t of rt.targets) {
+    const blocks = t.blocks && t.blocks._blocks ? t.blocks._blocks : {};
+    for (const [bid, b] of Object.entries(blocks)) {
+      if (!b || !b.opcode || !/^(music|pen)_/.test(b.opcode)) continue;
+      if (b.shadow) continue;
+      // 扩展 reporter（提示词未教过，防御处理）：父块输入槽换成常量 0，删除本块
+      const p = b.parent != null ? blocks[b.parent] : null;
+      // 出现在父块「值输入槽」（排除 SUBSTACK 分支根，那是语句）= reporter 形态
+      const slot = p ? Object.entries(p.inputs || {}).find(([k, inp]) =>
+        k !== 'SUBSTACK' && k !== 'SUBSTACK2' &&
+        (Array.isArray(inp) ? inp[1] === bid : inp && inp.block === bid)) : null;
+      if (slot) {
+        p.inputs[slot[0]] = [1, [4, '0']];
+        delete blocks[bid];
+        continue;
+      }
+      // 命令形态：改写为 control_wait
+      let dur = null;
+      for (const k of ['DURATION', 'BEATS', 'TEMPO', 'TIME']) {
+        if (b.inputs && b.inputs[k]) { dur = b.inputs[k]; break; }
+      }
+      b.opcode = 'control_wait';
+      b.inputs = { DURATION: dur || [1, [4, '0.25']] };
+      b.fields = {};
+    }
+  }
 
   // 统计绿旗脚本数量（供调用方判断「有绿旗脚本但没生效」这类问题）
   let greenFlagScripts = 0;
