@@ -595,6 +595,44 @@ def _write_gate_report(output_sb3: str, report: dict) -> str:
     return path
 
 
+def enforce_plan_fidelity(user_prompt: str, plan: dict, repair_fn=None, log=print):
+    """批次 11：plan 忠实性核对 + 回炉 1 轮（硬冲突口径，人工确认 2026-10-23）。
+
+    must（P1-P4）拒绝 → repair_fn(反馈文本) 重做 plan → 确定性复验；
+    复验仍拒或无有效修正稿 → 返回 (None, report)，调用方回退单轮生成。
+    should（W1/W2 模板级补全）只记录，不触发回炉。
+    红线：回炉修正由被门控生成器执行、由确定性核对复验；判据代码不由生成器维护。
+    """
+    fid = plan_fidelity.check_plan_fidelity(user_prompt, plan)
+    report = {"rounds": 0, "must": fid["must"], "should": fid["should"],
+              "verdict": fid["verdict"]}
+    for s in fid["should"]:
+        log(f"⚠️ plan 忠实性（should）：{s['id']} {s['detail']}")
+    if not fid["must"]:
+        return plan, report
+    for m in fid["must"]:
+        log(f"⛔ plan 忠实性（must）：{m['id']} {m['detail']}")
+    report["rounds"] = 1
+    fb = "【plan 忠实性核对未通过】下面是与需求原文的硬冲突，必须修正后重新输出**完整**设计文档：\n" \
+        + "\n".join(f"- [{m['id']}] {m['detail']}" for m in fid["must"]) \
+        + "\n只修正与冲突相关的字段/幕，不要重写无关部分；修正后会用同一核对器复验。"
+    new_plan = repair_fn(fb) if repair_fn else None
+    if new_plan is None:
+        report["verdict"] = "rejected"
+        log("⚠️ plan 回炉未产生有效修正稿，回退单轮生成")
+        return None, report
+    fid2 = plan_fidelity.check_plan_fidelity(user_prompt, new_plan)
+    report["must_after"] = fid2["must"]
+    report["should_after"] = fid2["should"]
+    report["verdict"] = fid2["verdict"]
+    if fid2["must"]:
+        log("⛔ plan 回炉后复验仍不通过，回退单轮生成："
+            + "；".join(m["detail"] for m in fid2["must"][:3]))
+        return None, report
+    log("✅ plan 忠实性回炉复验通过")
+    return new_plan, report
+
+
 def enforce_gate(plan: dict, sb3_path: str, repair_fn=None,
                  max_rounds: int = GATE_MAX_ROUNDS,
                  timeout: float = GATE_TIMEOUT_SECONDS,
@@ -759,33 +797,33 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                 elif cast_report.get("problems"):
                     print("🎨 视觉选角提示：" + "；".join(cast_report["problems"][:2]))
                 _emit_step(step_cb, "casting", "done", "视觉选角")
-            # 批次 11：plan 忠实性确定性核对（硬冲突口径，人工确认 2026-10-23）。
-            # 观察期只记录并落盘 plan_fidelity.json，不拦截生成；回炉/拦截的处置
-            # 口径需另行人工确认（红线：被门控模型不能自证忠实）。
-            fid = plan_fidelity.check_plan_fidelity(user_prompt, plan)
-            if fid["must"] or fid["should"]:
-                try:
-                    with open(os.path.join(work_dir, "plan_fidelity.json"), "w",
-                              encoding="utf-8") as fh:
-                        json.dump(fid, fh, ensure_ascii=False, indent=2)
-                except OSError:
-                    pass
-                for m in fid["must"]:
-                    print(f"⛔ plan 忠实性（must）：{m['id']} {m['detail']}")
-                for s in fid["should"]:
-                    print(f"⚠️ plan 忠实性（should）：{s['id']} {s['detail']}")
+            # 批次 11：plan 忠实性确定性核对 + 回炉 1 轮（硬冲突口径，人工确认 2026-10-23）。
+            # must（P1-P4）→ 发回 planner 重做一轮 → 确定性复验；复验仍拒 → 放弃
+            # premium 路径，走下方既有的单轮生成（与「分幕失败回退单轮」同一路径）。
+            plan, fid_report = enforce_plan_fidelity(
+                user_prompt, plan,
+                lambda fb: planner.refine_fidelity(
+                    plan, fb.splitlines(), stop_event=stop_event,
+                    on_chunk=on_chunk, on_usage=on_usage))
             try:
-                if plan.get("routes"):
-                    # 多路线项目：控制流（Stage/调度器/选项/站点等待）全部由装配器生成，
-                    # 模型只负责设计文档里的台词与素材，避免状态机写错。
-                    print("🧩 多路线项目：控制流由装配器生成")
-                    premium_files = assembler.build_tour_project(plan)
-                else:
-                    premium_files = writer.write_project(plan, asset_block=asset_block,
-                                                         stop_event=stop_event,
-                                                         on_chunk=on_chunk, on_usage=on_usage)
-            except (writer.BeatWriteError, ValueError) as exc:
-                print(f"⚠️ 分幕生成失败，回退单轮生成：{exc}")
+                with open(os.path.join(work_dir, "plan_fidelity.json"), "w",
+                          encoding="utf-8") as fh:
+                    json.dump(fid_report, fh, ensure_ascii=False, indent=2)
+            except OSError:
+                pass
+            if plan is not None:
+                try:
+                    if plan.get("routes"):
+                        # 多路线项目：控制流（Stage/调度器/选项/站点等待）全部由装配器生成，
+                        # 模型只负责设计文档里的台词与素材，避免状态机写错。
+                        print("🧩 多路线项目：控制流由装配器生成")
+                        premium_files = assembler.build_tour_project(plan)
+                    else:
+                        premium_files = writer.write_project(plan, asset_block=asset_block,
+                                                             stop_event=stop_event,
+                                                             on_chunk=on_chunk, on_usage=on_usage)
+                except (writer.BeatWriteError, ValueError) as exc:
+                    print(f"⚠️ 分幕生成失败，回退单轮生成：{exc}")
             if premium_files:
                 print(f"✅ 分幕生成完成：{len(premium_files)} 个文件")
                 if critic_enabled() and not plan.get("routes"):

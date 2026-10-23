@@ -7,6 +7,7 @@
 import sys
 
 from core.plan_fidelity import check_plan_fidelity
+from core.project import enforce_plan_fidelity
 
 
 def _plan(win=None, lose=None, globals_=None, routes=None, beats=None, verb=""):
@@ -53,6 +54,43 @@ CASES = [
            verb="用方向键走进迷宫尽头的宝箱"), [], []),
 ]
 
+# ---- enforce_plan_fidelity 回炉状态机（口径：回炉 1 轮→失败回退单轮）----
+
+_FAITHFUL_PROMPT = "迷宫寻宝：方向键控制小人走到宝藏处显示胜利"
+_DRIFT_PROMPT = "三个场景，点击对话推进剧情"
+
+
+def _faithful_plan():
+    return _plan(win={"type": "reach", "value": 1}, verb="用方向键走进宝箱",
+                 beats=[{"type": "station"}, {"type": "station"}, {"type": "station"}])
+
+
+def _drift_plan():
+    return _plan(beats=[{"type": t} for t in
+                        ("intro", "route_choice", "station", "mini_game", "station", "ending")],
+                 win={"type": "reach", "value": 1}, verb="点击推进")
+
+
+def enforce_cases():
+    noop = lambda *a: None  # noqa: E731
+    out, rep = enforce_plan_fidelity(_FAITHFUL_PROMPT, _faithful_plan(),
+                                     lambda fb: None, log=noop)
+    yield ("回炉-健康plan不触发", out is not None and rep["rounds"] == 0
+           and rep["verdict"] == "passed")
+    out, rep = enforce_plan_fidelity(_DRIFT_PROMPT, _drift_plan(),
+                                     lambda fb: _faithful_plan(), log=noop)
+    yield ("回炉-修正后复验通过", out is not None and rep["rounds"] == 1
+           and rep["verdict"] == "passed")
+    out, rep = enforce_plan_fidelity(_DRIFT_PROMPT, _drift_plan(),
+                                     lambda fb: None, log=noop)
+    yield ("回炉-无有效修正稿回退", out is None and rep["verdict"] == "rejected")
+    out, rep = enforce_plan_fidelity(_DRIFT_PROMPT, _drift_plan(),
+                                     lambda fb: _drift_plan(), log=noop)
+    yield ("回炉-复验仍拒回退", out is None and rep["verdict"] == "rejected"
+           and rep.get("must_after"))
+    out, rep = enforce_plan_fidelity(_DRIFT_PROMPT, _drift_plan(), log=noop)
+    yield ("回炉-禁用修复直接回退", out is None and rep["rounds"] == 1)
+
 
 def main():
     failed = 0
@@ -71,6 +109,11 @@ def main():
             for s in r["should"]:
                 print(f"    should: {s['id']} {s['detail']}")
     total = len(CASES)
+    for name, ok in enforce_cases():
+        total += 1
+        print(f"[{'PASS' if ok else 'FAIL'}] {name}")
+        if not ok:
+            failed += 1
     print(f"\n{total - failed}/{total} 通过")
     return 1 if failed else 0
 

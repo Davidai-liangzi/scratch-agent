@@ -62,5 +62,5 @@ Qwen 系只读模型，触发条件 = plan 定稿前；只接收需求原文 + p
 ## 8. 执行状态（2026-10-23）
 
 - 口径已人工确认：硬冲突口径（模板级补全只记 should，must 只拦 P1-P4 四类硬冲突）。
-- 方案一已实施为批次 11：`core/plan_fidelity.py` + `test_plan_fidelity.py`（15/15）+ `build/recheck_fidelity.py`（漂移 7/8 must 拒、忠实 2/2 放行、零误拒，01 漏判由方案二补盲）；管线接线为观察期记录模式（不拦截），回炉处置口径待确认。详见 架构优化.md 批次 11 章节。
-- 方案二（异构审查者）待第 8 步评估；方案三（差异卡）待回炉口径确认时一并设计。
+- 方案一已实施为批次 11：`core/plan_fidelity.py` + `test_plan_fidelity.py`（20/20，含回炉状态机）+ `build/recheck_fidelity.py`（漂移 7/8 must 拒、忠实 2/2 放行、零误拒，01 漏判由方案二补盲）；回炉口径已人工确认并实施：**must→回炉 1 轮→复验，仍拒回退单轮生成**（`enforce_plan_fidelity` + `planner.refine_fidelity`）。详见 架构优化.md 批次 11 章节。
+- 方案二（异构审查者）待第 8 步评估；方案三（差异卡）可基于 plan_fidelity.json 报告低成本生成，待需要时设计。

@@ -430,3 +430,28 @@ def design(user_prompt: str, asset_block: str = "", flow_block: str = "",
         print("⚠️ 设计文档仍不合法，回退单轮生成：" + "；".join(errors[:3]))
         return None
     return plan
+
+
+def refine_fidelity(plan: dict, fidelity_errors, stop_event=None,
+                    on_chunk=None, on_usage=None):
+    """批次 11 回炉：按 plan_fidelity 的 must（P1-P4）理由重做 plan，只一轮。
+
+    复用 _repair_prompt 机制；返回修正后的 plan，失败返回 None（调用方回退单轮）。
+    红线：修正仍由被门控的生成器执行，由确定性核对复验——与 enforce_gate 同构。
+    """
+    repair = ask_llm(
+        [{"role": "system", "content": build_system_prompt()},
+         {"role": "user", "content": _repair_prompt(
+             json.dumps(plan, ensure_ascii=False), list(fidelity_errors))}],
+        stop_event=stop_event, on_chunk=on_chunk, on_usage=on_usage,
+    )
+    if not repair:
+        return None
+    try:
+        new_plan = parse_spec(repair)
+    except ValueError:
+        return None
+    new_plan, _unknown = normalize_plan(new_plan)
+    if validate_plan(new_plan):
+        return None
+    return new_plan
