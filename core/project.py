@@ -760,8 +760,9 @@ def _rebuild_from_plan(plan: dict, work_dir: str, output_sb3: str, *,
         log(f"⚠️ 异构候选重建失败：{exc}")
         return False
     try:
-        files = validate_files([{"path": p, "content": c}
-                                for p, c in premium_files.items()], strict_svg=False)
+        # 两个生成器都返回 [{"path","content"}] 列表（与主管线同构），不是 dict
+        files = validate_files([dict(item) for item in premium_files],
+                               strict_svg=False)
     except ValueError as exc:
         log(f"⚠️ 异构候选文件清单不合法：{exc}")
         return False

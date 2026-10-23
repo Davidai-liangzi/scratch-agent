@@ -316,10 +316,47 @@ def test_generate_plan():
         config.key_for = orig_key_for
 
 
+# ---------------- D. _rebuild_from_plan 重建路径（离线冒烟） ----------------
+# 真实连跑抓到过「把生成器返回的列表当 dict 用」的类型错误，这里守住契约：
+# 生成器返回 [{"path","content"}] 列表时必须走通 校验→归一→解析→写盘→打包 全链。
+
+def test_rebuild_path():
+    from core import project as P
+    noop = lambda *a: None  # noqa: E731
+    tmp = tempfile.mkdtemp(prefix="hetero_rebuild_")
+    work = os.path.join(tmp, "work")
+    sb3 = os.path.join(tmp, "g.sb3")
+    plan = _valid_plan()
+    orig_write = P.writer.write_project
+    orig_rebuild = P.rebuild_project
+    try:
+        def fake_write(plan, **kw):
+            return [{"path": "Guide/main.fractch",
+                     "content": 'when green flag clicked\nsay "hi"\n'},
+                    {"path": "Stage/main.fractch",
+                     "content": "when green flag clicked\n"}]
+        P.writer.write_project = fake_write
+        P.rebuild_project = lambda w, s: (open(s, "w").write("SB3"), True)[1]
+        ok = P._rebuild_from_plan(plan, work, sb3, log=noop)
+        check("重建路径-列表形态文件走通同构链",
+              ok and os.path.exists(sb3)
+              and os.path.exists(os.path.join(work, "Guide", "main.fractch"))
+              and os.path.exists(os.path.join(work, "plan.json")))
+        # 类型守卫：dict 形态输入不得崩溃（快速失败返回 False，不抛 AttributeError）
+        P.writer.write_project = lambda plan, **kw: {"Guide/main.fractch": "x"}
+        ok2 = P._rebuild_from_plan(plan, work, sb3, log=noop)
+        check("重建路径-dict形态输入快速失败不崩溃", ok2 is False)
+    finally:
+        P.writer.write_project = orig_write
+        P.rebuild_project = orig_rebuild
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     test_plan_side()
     test_gate_side()
     test_generate_plan()
+    test_rebuild_path()
     failed = [n for n, ok in results if not ok]
     for name, ok in results:
         print(("PASS " if ok else "FAIL ") + name)
