@@ -11,6 +11,7 @@ from core import (
     critic,
     fidelity_auditor,
     gate,
+    hetero,
     layout_check,
     plan_fidelity,
     planner,
@@ -596,11 +597,45 @@ def _write_gate_report(output_sb3: str, report: dict) -> str:
     return path
 
 
-def enforce_plan_fidelity(user_prompt: str, plan: dict, repair_fn=None, log=print):
+def _hetero_plan_rescue(user_prompt: str, report: dict, why: str,
+                        hetero_fn, log) -> tuple:
+    """批次 12：回退单轮前尝试异构候选（谁过用谁，都不过升级给人）。
+
+    候选判定权在确定性核对器（plan_fidelity），本函数与候选生成器都不下判定。
+    """
+    if hetero_fn is None:
+        report["verdict"] = "rejected"
+        log(f"⚠️ {why}，回退单轮生成")
+        return None, report
+    cand = hetero_fn()
+    if cand is None:
+        report["verdict"] = "rejected"
+        log(f"⚠️ {why}；异构候选不可用，回退单轮生成（升级给人）")
+        return None, report
+    fid = plan_fidelity.check_plan_fidelity(user_prompt, cand)
+    report["hetero"] = {"verdict": fid["verdict"], "must": fid["must"],
+                        "should": fid["should"]}
+    if not fid["must"]:
+        # 采纳候选：顶层 must 必须清空（否则必须非空 + verdict=passed 自相矛盾），
+        # should 换成候选自身的，保证 plan_fidelity.json 内部一致。
+        report["must"] = []
+        report["should"] = fid["should"]
+        report["verdict"] = "passed"
+        log("✅ 异构候选通过确定性核对，采用异构 plan")
+        return cand, report
+    report["verdict"] = "rejected"
+    log("⛔ 异构候选同样未过确定性核对，回退单轮生成（升级给人）："
+        + "；".join(m["detail"] for m in fid["must"][:3]))
+    return None, report
+
+
+def enforce_plan_fidelity(user_prompt: str, plan: dict, repair_fn=None, log=print,
+                          hetero_fn=None):
     """批次 11：plan 忠实性核对 + 回炉 1 轮（硬冲突口径，人工确认 2026-10-23）。
 
     must（P1-P4）拒绝 → repair_fn(反馈文本) 重做 plan → 确定性复验；
-    复验仍拒或无有效修正稿 → 返回 (None, report)，调用方回退单轮生成。
+    复验仍拒或无有效修正稿 → 批次 12：先试 hetero_fn() 异构候选（同一确定性
+    核对器复验），仍不可用才返回 (None, report)，调用方回退单轮生成。
     should（W1/W2 模板级补全）只记录，不触发回炉。
     红线：回炉修正由被门控生成器执行、由确定性核对复验；判据代码不由生成器维护。
     """
@@ -619,17 +654,17 @@ def enforce_plan_fidelity(user_prompt: str, plan: dict, repair_fn=None, log=prin
         + "\n只修正与冲突相关的字段/幕，不要重写无关部分；修正后会用同一核对器复验。"
     new_plan = repair_fn(fb) if repair_fn else None
     if new_plan is None:
-        report["verdict"] = "rejected"
-        log("⚠️ plan 回炉未产生有效修正稿，回退单轮生成")
-        return None, report
+        return _hetero_plan_rescue(user_prompt, report,
+                                   "plan 回炉未产生有效修正稿", hetero_fn, log)
     fid2 = plan_fidelity.check_plan_fidelity(user_prompt, new_plan)
     report["must_after"] = fid2["must"]
     report["should_after"] = fid2["should"]
     report["verdict"] = fid2["verdict"]
     if fid2["must"]:
-        log("⛔ plan 回炉后复验仍不通过，回退单轮生成："
-            + "；".join(m["detail"] for m in fid2["must"][:3]))
-        return None, report
+        return _hetero_plan_rescue(
+            user_prompt, report,
+            "plan 回炉后复验仍不通过（" + "；".join(m["detail"] for m in fid2["must"][:3]) + "）",
+            hetero_fn, log)
     log("✅ plan 忠实性回炉复验通过")
     return new_plan, report
 
@@ -703,6 +738,119 @@ def enforce_gate(plan: dict, sb3_path: str, repair_fn=None,
     log(f"⛔ 门控熔断（{reason}）：{len(report['must'])} 条 must 未通过，"
         f"涉及切片 {report['slices'] or '整体'}；报告：{path}")
     return report
+
+
+def _rebuild_from_plan(plan: dict, work_dir: str, output_sb3: str, *,
+                       asset_block: str = "", flow_block: str = "",
+                       user_images=None, stop_event=None, on_chunk=None,
+                       on_usage=None, log=print) -> bool:
+    """批次 12：按设计文档重建工程并打包（异构候选救援专用，与主管线构建环节同构）。
+
+    多路线走装配器（确定性），单线走分幕写手（既有管线）；素材解析、写入、
+    打包顺序与主管线一致。任何一步失败返回 False，由调用方回滚现场。
+    """
+    try:
+        if plan.get("routes"):
+            premium_files = assembler.build_tour_project(plan)
+        else:
+            premium_files = writer.write_project(plan, asset_block=asset_block,
+                                                 stop_event=stop_event,
+                                                 on_chunk=on_chunk, on_usage=on_usage)
+    except (writer.BeatWriteError, ValueError) as exc:
+        log(f"⚠️ 异构候选重建失败：{exc}")
+        return False
+    try:
+        files = validate_files([{"path": p, "content": c}
+                                for p, c in premium_files.items()], strict_svg=False)
+    except ValueError as exc:
+        log(f"⚠️ 异构候选文件清单不合法：{exc}")
+        return False
+    files, unknown_assets = schemas.normalize_asset_refs(files)
+    if unknown_assets:
+        log(f"⚠️ 异构候选有 {len(unknown_assets)} 个素材名无法解析，将使用兜底图形")
+    files, decls = resolve_user_assets(files, user_images)
+    files, official_decls = resolve_official_assets(files)
+    for target, items in official_decls.items():
+        decls.setdefault(target, []).extend(items)
+    write_files(work_dir, files)
+    inject_costume_declarations(work_dir, decls)
+    inject_missing_sprite_costumes(work_dir)
+    save_plan(work_dir, plan)
+    if not rebuild_project(work_dir, output_sb3):
+        log("⚠️ 异构候选打包失败")
+        return False
+    return True
+
+
+def hetero_rescue_gate(user_prompt: str, failed_report: dict, sb3_path: str,
+                       work_dir: str, *, generate_fn=None, rebuild_fn=None,
+                       gate_fn=None, log=print) -> tuple:
+    """批次 12（第 8 步·角色三）：门控熔断后尝试异构候选，谁过用谁，都不过升级给人。
+
+    流程：generate_fn() 出候选 plan（1 次异构调用，不看 DeepSeek 稿子）→
+    rebuild_fn(candidate) 重建打包 → gate_fn(candidate) 进**同一个确定性门控**
+    （单轮、不回炉：修复权仍属原管线）。通过返回 (candidate_plan, report)；
+    任一步失败则恢复原工程与原失败报告，返回 (None, failed_report)。
+    红线：采纳与否只由确定性门控判定；本函数不含任何质量判断逻辑。
+    generate_fn / rebuild_fn / gate_fn 均可注入（离线测试用）。
+    """
+    cand = generate_fn() if generate_fn else None
+    if cand is None:
+        log("ℹ️ 异构候选不可用（厂商未配/调用失败/输出不合法），维持原判（升级给人）")
+        return None, failed_report
+    snap = _snapshot(work_dir)
+    sb3_backup = sb3_path + ".hetero_backup"
+    had_sb3 = os.path.exists(sb3_path)
+    if had_sb3:
+        try:
+            shutil.copy2(sb3_path, sb3_backup)
+        except OSError as exc:
+            log(f"⚠️ 异构救援无法备份产物：{exc}")
+            return None, failed_report
+
+    def restore_scene():
+        """候选未被采纳时把工程、产物、失败报告都恢复到救援前（一处定义，三处复用）。"""
+        _restore(work_dir, snap)
+        if had_sb3:
+            try:
+                shutil.copy2(sb3_backup, sb3_path)
+            except OSError:
+                pass
+        _write_gate_report(sb3_path, failed_report)
+
+    try:
+        if not rebuild_fn(cand):
+            restore_scene()
+            log("⚠️ 异构候选重建失败，已恢复原工程，维持原判（升级给人）")
+            return None, failed_report
+        report2 = gate_fn(cand, sb3_path)
+        if report2.get("status") == "passed":
+            report2["hetero"] = {"accepted": True, "rounds": report2.get("rounds")}
+            # 采纳后覆盖旧的熔断报告，保证 .gate.json 与最终产物一致（审计口径）
+            _write_gate_report(sb3_path, report2)
+            log("✅ 异构候选通过同一确定性门控，采用异构产物（原产物已被替换）")
+            return cand, report2
+        # 候选没过确定性门控：恢复现场，原产物与原失败报告保持原样
+        restore_scene()
+        must2 = report2.get("must") or []
+        log("⛔ 异构候选同样未过确定性门控，维持原判（升级给人）："
+            + "；".join(m.get("id", "?") for m in must2[:3]))
+        return None, failed_report
+    except GenerationStopped:
+        restore_scene()
+        raise
+    except Exception as exc:
+        # 门控/落盘异常时同样恢复现场：绝不能让「候选半成品 + 旧失败报告」留在磁盘上。
+        # 观察期口径：救援失败不阻断构建，维持原判、升级给人。
+        restore_scene()
+        log(f"⚠️ 异构救援过程异常（{exc}），已恢复原工程与产物，维持原判（升级给人）")
+        return None, failed_report
+    finally:
+        try:
+            if os.path.exists(sb3_backup):
+                os.remove(sb3_backup)
+        except OSError:
+            pass
 
 
 def check_requirement_conflict(user_prompt: str, stop_event=None, on_usage=None) -> dict:
@@ -805,16 +953,21 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                 user_prompt, plan,
                 lambda fb: planner.refine_fidelity(
                     plan, fb.splitlines(), stop_event=stop_event,
-                    on_chunk=on_chunk, on_usage=on_usage))
+                    on_chunk=on_chunk, on_usage=on_usage),
+                hetero_fn=lambda: hetero.generate_plan(
+                    user_prompt, asset_block=asset_block, flow_block=flow_block,
+                    stop_event=stop_event, on_usage=on_usage))
             try:
                 with open(os.path.join(work_dir, "plan_fidelity.json"), "w",
                           encoding="utf-8") as fh:
                     json.dump(fid_report, fh, ensure_ascii=False, indent=2)
             except OSError:
                 pass
-            if plan is not None and fid_report.get("verdict") == "passed":
+            if plan is not None and fid_report.get("verdict") == "passed" \
+                    and not fid_report.get("hetero"):
                 # 批次 11 方案二：确定性核对放行后才跑异构审查者（只读差异卡，
                 # 供人工确认；厂商未配 Key 或失败时静默跳过，不影响主流程）。
+                # 批次 12：plan 本身来自异构候选（同为 qwen）时不跑——同厂商审查不构成异构。
                 try:
                     audit = fidelity_auditor.audit_plan(user_prompt, plan,
                                                         stop_event=stop_event,
@@ -1054,6 +1207,28 @@ def build_scratch_project(user_prompt: str, feedback_fn=None, project_name: str 
                             on_chunk=on_chunk, on_usage=on_usage)
                     report = enforce_gate(plan, output_sb3, repair_fn,
                                           plan_path=plan_path)
+                    if report["status"] != "passed":
+                        # 批次 12（第 8 步·角色三）：熔断后异构候选救援——qwen 独立
+                        # 出 plan 候选（不看 DeepSeek 稿子）→ 重建打包 → 进同一个
+                        # 确定性门控，谁过用谁，都不过维持原判、升级给人。
+                        cand_plan, rescued = hetero_rescue_gate(
+                            user_prompt, report, output_sb3, work_dir,
+                            generate_fn=lambda: hetero.generate_plan(
+                                user_prompt, asset_block=asset_block,
+                                flow_block=flow_block, stop_event=stop_event,
+                                on_usage=on_usage, log=print),
+                            rebuild_fn=lambda p: _rebuild_from_plan(
+                                p, work_dir, output_sb3, asset_block=asset_block,
+                                flow_block=flow_block, user_images=user_images,
+                                stop_event=stop_event, on_chunk=on_chunk,
+                                on_usage=on_usage, log=print),
+                            gate_fn=lambda p, sb3: enforce_gate(
+                                p, sb3, None, max_rounds=1, plan_path=plan_path,
+                                log=print),
+                            log=print)
+                        if cand_plan is not None:
+                            plan = cand_plan
+                            report = rescued
                     if report["status"] != "passed":
                         gate_ok = False
                         for item in report["must"]:
